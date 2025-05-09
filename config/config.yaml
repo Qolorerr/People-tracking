@@ -1,0 +1,196 @@
+defaults:
+   - _self_
+   - dataset: sportsMOT
+
+name: "YOLO11n-osnet_x1_0"
+confidence_threshold: 0.594
+crop_size: 640
+person_reshape_h: 256
+person_reshape_w: 128
+
+train_transforms:
+#  - _target_: albumentations.SmallestMaxSize
+#    max_size: ${crop_size}
+#  - _target_: albumentations.CenterCrop
+#    height: ${crop_size}
+#    width: ${crop_size}
+#  - _target_: albumentations.AdvancedBlur
+#    p: 0.75
+#  - _target_: albumentations.GaussNoise
+#    p: 0.75
+#  - _target_: albumentations.HorizontalFlip
+#    p: 0.5
+#  - _target_: albumentations.CLAHE
+#    p: 0.75
+#  - _target_: albumentations.RandomBrightnessContrast
+#    p: 0.75
+#  - _target_: albumentations.RandomGamma
+#    p: 0.75
+#  - _target_: albumentations.ColorJitter
+#    p: 0.75
+#  - _target_: albumentations.Normalize
+#    mean: ${mean}
+#    std: ${std}
+  - _target_: albumentations.pytorch.ToTensorV2
+
+val_transforms:
+  - _target_: albumentations.SmallestMaxSize
+    max_size: ${crop_size}
+  - _target_: albumentations.CenterCrop
+    height: ${crop_size}
+    width: ${crop_size}
+#  - _target_: albumentations.Normalize
+#    mean: ${mean}
+#    std: ${std}
+  - _target_: albumentations.pytorch.ToTensorV2
+
+test_transforms:
+#  - _target_: albumentations.SmallestMaxSize
+#    max_size: ${crop_size}
+#  - _target_: albumentations.CenterCrop
+#    height: ${crop_size}
+#    width: ${crop_size}
+#  - _target_: albumentations.Normalize
+#    mean: ${mean}
+#    std: ${std}
+  - _target_: albumentations.pytorch.ToTensorV2
+
+train_loader:
+  _target_: torch.utils.data.DataLoader
+  dataset:
+    _target_: src.datasets.CroppedSportsMOTDataset
+    root: ${dataset.cropped_data_dir}
+    split: train
+    transforms:
+      _target_: albumentations.Compose
+      transforms: ${train_transforms}
+    splits_dir: ${dataset.cropped_splits_dir}
+#    load_limit: 1000
+  shuffle: True
+  batch_size: 8
+  num_workers: 4
+
+val_loader:
+  _target_: torch.utils.data.DataLoader
+  dataset:
+    _target_: src.datasets.SportsMOTDataset
+    root: ${dataset.data_dir}
+    split: val
+    transforms:
+      _target_: albumentations.Compose
+      transforms: ${val_transforms}
+      bbox_params:
+        _target_: albumentations.BboxParams
+        format: pascal_voc
+        label_fields:
+        - class_labels
+    splits_dir: ${dataset.splits_dir}
+#    load_limit: 100
+    shuffle: False
+  batch_size: 1
+  num_workers: 1
+
+test_loader:
+  _target_: torch.utils.data.DataLoader
+  dataset:
+    _target_: src.datasets.SportsMOTDataset
+    root: ${dataset.data_dir}
+    split: test
+    transforms:
+      _target_: albumentations.Compose
+      transforms: ${test_transforms}
+    splits_dir: ${dataset.splits_dir}
+    load_limit: 1000
+    shuffle: True
+  batch_size: 1
+  num_workers: 1
+
+accelerator:
+  _target_: accelerate.Accelerator
+  cpu: False
+#  mixed_precision: fp16
+
+detection_model:
+  _target_: ultralytics.YOLO
+  model: D:\Programs\Projects\People-tracking\config\yolo11n.pt
+  task: detect
+
+feature_extractor_model:
+  _target_: torchreid.models.build_model
+  name: "osnet_x1_0"
+  loss: "softmax"
+  pretrained: True
+
+loss:
+  _target_: src.utils.CrossEntropyLoss
+  label_smooth: True
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 0.0003
+  weight_decay: 0.0005
+  betas:
+   - 0.9
+   - 0.999
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  mode: max
+
+feature_extractor:
+  _target_: torchreid.utils.FeatureExtractor
+  model_name: "osnet_x1_0"
+  model_path: D:\Programs\Projects\People-detection\log\osnet_x1_0\model\model.pth.tar-60
+
+tracklet_master:
+  _target_: src.utils.TrackManager
+  motion_weight: 0.425
+  appearance_weight: 0.575
+  match_threshold: 0.4275
+  tracklet_expiration: 25
+
+visualizer:
+  track_length: 100
+
+trainer:
+  epochs: 80
+  save_period: 1
+  val: True
+  val_per_epochs: 1
+  tune_per_epochs: 1000
+  tuner_params:
+    alpha: 0.8
+    min_l: 0
+    max_r: 1
+    params:
+      confidence_threshold:
+        radius: 0.25
+        steps: 3
+      motion_weight:
+        radius: 0.25
+        steps: 3
+      match_threshold:
+        radius: 0.25
+        steps: 3
+  monitor: "off"
+  tensorboard: True
+  save_dir: saved/checkpoints
+  log_dir: saved/runs
+  log_per_iter: 100
+
+tester:
+  monitor: "off"
+  tensorboard: True
+  log_dir: saved/runs
+  log_per_iter: 10
+
+live_tester:
+  rtsp_url: "rtsp://192.168.1.221:8080/h264.sdp"
+  transforms:
+    _target_: albumentations.Compose
+    transforms: ${test_transforms}
+  tensorboard: False
+  log_dir: saved/runs
+  log_per_iter: 10
+
+resume: D:\Programs\Projects\People-tracking\outputs\2025-04-20\21-54-23\saved\checkpoints\YOLO11n-osnet_x1_0\04-20_21-54\checkpoint-epoch10.pth

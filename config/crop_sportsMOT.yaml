@@ -1,0 +1,29 @@
+defaults:
+   - _self_
+   - dataset: sportsMOT
+
+crop_size: 640
+
+train_transforms:
+  - _target_: albumentations.SmallestMaxSize
+    max_size: ${crop_size}
+  - _target_: albumentations.pytorch.ToTensorV2
+
+cropper:
+  _target_: src.utils.sportsmot_cropper.SportsMOTCropper
+  root: ${dataset.data_dir}
+  split: train
+  transforms:
+    _target_: albumentations.Compose
+    transforms: ${train_transforms}
+    bbox_params:
+      _target_: albumentations.BboxParams
+      format: pascal_voc
+      label_fields:
+      - class_labels
+  splits_dir: ${dataset.splits_dir}
+  person_reshape_h: 256
+  person_reshape_w: 128
+  dataset_save_dir: D:\Datasets\sportsmot_cropped\dataset
+
+splits_save_dir: D:\Datasets\sportsmot_cropped\splits_txt

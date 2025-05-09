@@ -1,0 +1,12 @@
+omegaconf~=2.3.0
+ultralytics~=8.3.36
+accelerate~=0.25.0
+albumentations~=1.4.21
+numpy~=1.26.2
+opencv-python~=4.8.1.78
+tqdm~=4.66.1
+torchvision~=0.16.1
+matplotlib~=3.9.2
+torchreid~=1.4.0
+scipy~=1.11.4
+motmetrics~=1.4.0
