@@ -1,6 +1,9 @@
+import collections
+
 import torch
 from torch import Tensor
 from torch.utils import tensorboard
+import torch.nn.functional as F
 from tqdm import tqdm
 
 
@@ -43,11 +46,11 @@ class MetricsMeter:
             self.writer.add_scalar(f"{wrt_mode}/{metric}", value[0].avg, wrt_step)
 
     def print_metrics(
-        self,
-        tbar: tqdm,
-        epoch: int,
-        mode: str = "TRAIN",
-        **kwargs,
+            self,
+            tbar: tqdm,
+            epoch: int,
+            mode: str = "TRAIN",
+            **kwargs,
     ) -> None:
         message = "{} ({}) | "
         message = message.format(mode, epoch)
@@ -87,7 +90,7 @@ class MetricsMeter:
         return {metric: value[0].avg for metric, value in self.total_metrics.items()}
 
 
-def accuracy(output, target, topk=(1, )):
+def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for
     the specified values of k.
 
@@ -133,3 +136,60 @@ def compute_iou_batch(bboxes1: Tensor, bboxes2: Tensor):
     iou = intersection_area / union_area
     iou[union_area == 0] = 0.0
     return iou
+
+
+class AdaptiveMetrics:
+    def __init__(self, window_size: int = 30):
+        self.window_size = window_size
+        self.window: collections.deque[dict[str, int | float]] = collections.deque(maxlen=window_size)
+        self.previous_features: dict[int, Tensor] = {}
+        self.current: dict[str, int | float] = {
+            'match_ratio': 0.0,  # matches/detections
+            'prediction_error': 0.0,  # IoU between predictions/detections
+            'track_fragmentation': 0,  # tracks deleted per frame
+            'feature_consistency': 0.0,  # cosine similarity between track updates
+        }
+
+    def update(self,
+               matches: list[tuple[int, int]],
+               frame_detections: Tensor,
+               track_predictions: Tensor,
+               frame_features: dict[int, Tensor],
+               deleted_tracks_count: int = 0):
+        self.current['match_ratio'] = len(matches) / len(frame_detections) if len(frame_detections) > 0 else 1.0
+        self.current['prediction_error'] = 1.0 - self._avg_iou(matches, frame_detections, track_predictions)
+        self.current['track_fragmentation'] = deleted_tracks_count
+        self.current['feature_consistency'] = self._feature_consistency(frame_features)
+        self.window.append(self.current.copy())
+
+    @staticmethod
+    def _avg_iou(matches: list[tuple[int, int]], frame_detections: Tensor, track_predictions: Tensor) -> float:
+        if matches:
+            pred_boxes = torch.stack([track_predictions[track_idx] for track_idx, _ in matches])
+            det_boxes = torch.stack([frame_detections[det_idx] for _, det_idx in matches])
+            ious = compute_iou_batch(pred_boxes, det_boxes)
+
+            avg_iou = torch.mean(ious).item() if len(ious) > 0 else 0.0
+            return avg_iou
+        return 0.0
+
+    def _feature_consistency(self, frame_features: dict[int, Tensor]) -> float:
+        similarities = []
+        for track_id, current_feat in frame_features.items():
+            if track_id in self.previous_features:
+                prev_feat = self.previous_features[track_id]
+                sim = F.cosine_similarity(current_feat.unsqueeze(0), prev_feat.unsqueeze(0))
+                similarities.append(sim)
+
+        self.previous_features = {tid: feat.clone().detach() for tid, feat in frame_features.items()}
+        return torch.mean(torch.stack(similarities)).item() if similarities else 0.0
+
+    def reset(self) -> None:
+        self.window: collections.deque[dict[str, int | float]] = collections.deque(maxlen=self.window_size)
+        self.previous_features: dict[int, Tensor] = {}
+        self.current: dict[str, int | float] = {
+            'match_ratio': 0.0,
+            'prediction_error': 0.0,
+            'track_fragmentation': 0,
+            'feature_consistency': 0.0,
+        }
