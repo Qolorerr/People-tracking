@@ -7,6 +7,6 @@ from .visualizer import TrackVisualizer
 
 from .losses import CrossEntropyLoss
 from .metrics import MetricsMeter, AverageMeter
-from .mixins import CropBboxesOutOfFramesMixin
+from .mixins import CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin
 
 from .video_window import VideoWindow

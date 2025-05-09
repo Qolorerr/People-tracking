@@ -20,10 +20,11 @@ from torch import nn, Tensor
 from torch.utils import tensorboard
 from ultralytics import YOLO
 
-from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow, MetricsMeter
+from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow, MetricsMeter, \
+    LoadAndSaveParamsMixin
 
 
-class LiveTester(CropBboxesOutOfFramesMixin):
+class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(
             self,
             accelerator: Accelerator,
@@ -139,6 +140,10 @@ class LiveTester(CropBboxesOutOfFramesMixin):
 
         track_manager_metrics = self.tracklet_master.get_metrics()
         self.metric_store.update(track_manager_metrics)
+
+        tracker_params = self.get_params()
+        self.metric_store.update(tracker_params)
+
         if self.log_step and self.frame_idx % self.log_step == 0:
             self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
