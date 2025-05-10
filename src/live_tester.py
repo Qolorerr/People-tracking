@@ -20,10 +20,11 @@ from torch import nn, Tensor
 from torch.utils import tensorboard
 from ultralytics import YOLO
 
-from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow
+from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow, MetricsMeter, \
+    LoadAndSaveParamsMixin
 
 
-class LiveTester(CropBboxesOutOfFramesMixin):
+class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(
             self,
             accelerator: Accelerator,
@@ -69,6 +70,7 @@ class LiveTester(CropBboxesOutOfFramesMixin):
         self.wrt_mode, self.wrt_step = "test", 0
         self.log_step: int = cfg_tester.get("log_per_iter", 1)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.metric_store = MetricsMeter(writer=self.writer)
 
         self.confidence_threshold = self.config["confidence_threshold"]
         self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
@@ -94,6 +96,7 @@ class LiveTester(CropBboxesOutOfFramesMixin):
                 self.frame_queue.get()
             self.frame_queue.put(frame)
             self.frame_idx += 1
+            self.wrt_step += 1
 
     def _extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
         with torch.no_grad():
@@ -134,6 +137,15 @@ class LiveTester(CropBboxesOutOfFramesMixin):
         active_tracks = self.tracklet_master.update(frame_idx=self.frame_idx,
                                                     bboxes=detections['bboxes'],
                                                     features=detections['features'])
+
+        track_manager_metrics = self.tracklet_master.get_metrics()
+        self.metric_store.update(track_manager_metrics)
+
+        tracker_params = self.get_params()
+        self.metric_store.update(tracker_params)
+
+        if self.log_step and self.frame_idx % self.log_step == 0:
+            self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
         img = frame_tensor.cpu().numpy().transpose(1, 2, 0)
         img = (img * 255).astype(np.uint8)

@@ -45,11 +45,22 @@ val_transforms:
   - _target_: albumentations.pytorch.ToTensorV2
 
 test_transforms:
-#  - _target_: albumentations.SmallestMaxSize
-#    max_size: ${crop_size}
-#  - _target_: albumentations.CenterCrop
-#    height: ${crop_size}
-#    width: ${crop_size}
+#  - _target_: albumentations.Resize
+#    height: 720
+#    width: 1280
+#  - _target_: albumentations.PadIfNeeded
+#    min_height: 736
+#    min_width: 1280
+#    border_mode: 0
+#    value:
+#    - 0
+#    - 0
+#    - 0
+  - _target_: albumentations.SmallestMaxSize
+    max_size: ${crop_size}
+  - _target_: albumentations.CenterCrop
+    height: ${crop_size}
+    width: ${crop_size}
 #  - _target_: albumentations.Normalize
 #    mean: ${mean}
 #    std: ${std}
@@ -143,11 +154,14 @@ feature_extractor:
   model_path: D:\Programs\Projects\People-detection\log\osnet_x1_0\model\model.pth.tar-60
 
 tracklet_master:
-  _target_: src.utils.TrackManager
+  _target_: src.utils.AdaptiveTrackManager
   motion_weight: 0.425
   appearance_weight: 0.575
   match_threshold: 0.4275
   tracklet_expiration: 25
+  adapt_params:
+    adapt_weights:
+      delta: 0.001
 
 visualizer:
   track_length: 100

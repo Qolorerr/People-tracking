@@ -18,10 +18,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
-from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin
+from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin, \
+    LoadAndSaveParamsMixin
 
 
-class Trainer(CropBboxesOutOfFramesMixin):
+class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(self,
                  train_dataloader: DataLoader,
                  val_dataloader: DataLoader,
@@ -92,10 +93,10 @@ class Trainer(CropBboxesOutOfFramesMixin):
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
             "crop_size",
-            "test_loader",
+            "train_loader",
             "detection_model",
-            "feature_extractor",
-            "tester",
+            "feature_extractor_model",
+            "trainer",
         ]
         for info in info_to_write:
             self.writer.add_text(f"info/{info}", str(self.config[info]))
@@ -128,7 +129,7 @@ class Trainer(CropBboxesOutOfFramesMixin):
             log = {"epoch": epoch, **results}
 
             if self.do_validation and epoch % self.tune_per_epochs == 0:
-                tunable_params = self._get_params()
+                tunable_params = self.get_params()
 
                 with torch.no_grad():
                     results = self._tune_val_epoch(epoch)
@@ -187,27 +188,13 @@ class Trainer(CropBboxesOutOfFramesMixin):
 
         return self.metric_store.get_metrics_as_dict()
 
-    def _load_params(self, params: dict[str, Any]) -> None:
-        self.confidence_threshold = params["confidence_threshold"]
-        self.tracklet_master.motion_weight = params["motion_weight"]
-        self.tracklet_master.appearance_weight = params["appearance_weight"]
-        self.tracklet_master.match_threshold = params["match_threshold"]
-
-    def _get_params(self) -> dict[str, Any]:
-        return {
-            "confidence_threshold": self.confidence_threshold,
-            "motion_weight": self.tracklet_master.motion_weight,
-            "appearance_weight": self.tracklet_master.appearance_weight,
-            "match_threshold": self.tracklet_master.match_threshold,
-        }
-
     def _tune_val_epoch(self, epoch: int) -> dict[str, float]:
         self.set_model_mode('eval')
         self.metric_store.reset()
         self._calc_wrt_step(0, len(self.val_dataloader), 0)
 
         best_score = -1
-        best_params = self._get_params()
+        best_params = self.get_params()
         updated = False
         backup = best_params.copy()
 
@@ -270,7 +257,7 @@ class Trainer(CropBboxesOutOfFramesMixin):
 
                     if score > best_score:
                         best_score = score
-                        best_params = self._get_params()
+                        best_params = self.get_params()
                         updated = True
 
                     tbar.update(1)
@@ -278,11 +265,11 @@ class Trainer(CropBboxesOutOfFramesMixin):
         except Exception as e:
             print("Exception during tuning:", e)
             print("Loading backup")
-            self._load_params(backup)
+            self.load_params(backup)
 
         if not updated:
             best_params = backup
-        self._load_params(best_params)
+        self.load_params(best_params)
 
         self.tuner_params.params.confidence_threshold.radius *= self.tuner_params.alpha
         self.tuner_params.params.motion_weight.radius *= self.tuner_params.alpha
