@@ -354,8 +354,8 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         filtered_labels = labels[valid_mask]
         return filtered_bboxes, filtered_labels
 
-    def forward_backward(self, data: tuple[Tensor, Tensor, LongTensor, Tensor]) -> dict[str, float]:
-        frames, _, labels, _ = data
+    def forward_backward(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> dict[str, float]:
+        _, frames, _, labels, _ = data
 
         self.optimizer.zero_grad()
 
@@ -373,8 +373,8 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         return loss_summary
 
     def evaluate(self, frame_idx: int,
-                 data: tuple[Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
-        frame, true_bboxes, true_labels, is_new_video = data
+                 data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
+        _, frame, true_bboxes, true_labels, is_new_video = data
 
         true_bboxes, true_labels = self._filter_degenerate_bboxes(bboxes=true_bboxes.squeeze(0),
                                                                   labels=true_labels.squeeze(0))

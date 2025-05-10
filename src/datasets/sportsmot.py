@@ -83,7 +83,7 @@ class SportsMOTDataset(BaseDataset):
             for frame_id in range(1, frame_count + 1):
                 self.samples.append((video_idx, frame_id))
 
-    def __getitem__(self, idx) -> (Tensor, Tensor, LongTensor, Tensor):
+    def __getitem__(self, idx) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
         video_idx, frame_id = self.samples[idx]
         video = self.video_info[video_idx]
 
@@ -91,6 +91,7 @@ class SportsMOTDataset(BaseDataset):
         frame = cv2.imread(frame_path)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+        frame_id_tensor = torch.tensor([0, idx], dtype=torch.int64)
         is_new_video = torch.tensor([frame_id == 1], dtype=torch.bool)
 
         if self.split == 'test':
@@ -102,7 +103,7 @@ class SportsMOTDataset(BaseDataset):
             frame = transformed["image"]
             frame = frame.float() / 255.0
 
-            return frame, torch.tensor([]), torch.tensor([]), is_new_video
+            return frame_id_tensor, frame, torch.tensor([]), torch.tensor([]), is_new_video
 
         anns: list[dict[str, Any]] = video['annotations'].get(frame_id, [])
         boxes, labels = [], []
@@ -126,4 +127,4 @@ class SportsMOTDataset(BaseDataset):
         boxes = torch.from_numpy(boxes).to(torch.int64)
         labels = torch.tensor(labels, dtype=torch.long)
 
-        return frame, boxes, labels, is_new_video
+        return frame_id_tensor, frame, boxes, labels, is_new_video

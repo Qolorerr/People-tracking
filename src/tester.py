@@ -90,7 +90,7 @@ class Tester(CropBboxesOutOfFramesMixin):
 
     def test(self) -> None:
         tbar = tqdm(self.dataloader, desc="Test")
-        for self.wrt_step, (frame, _, _, is_new_video) in enumerate(tbar):
+        for self.wrt_step, (_, frame, _, _, is_new_video) in enumerate(tbar):
             if is_new_video.item():
                 self.tracklet_master.reset()
 
