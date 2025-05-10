@@ -2,13 +2,14 @@ import torch
 from torch import Tensor
 
 from .kalman_filter import KalmanFilter
+from src.base import BaseTrack
 
 
-class Track:
+class Track(BaseTrack):
     def __init__(self, frame_idx: int, track_id: int, bbox: Tensor, feature: Tensor, track_length_vis: int = 25):
+        super().__init__(track_id=track_id, bbox=bbox, track_length_vis=track_length_vis)
+
         self.start_frame_idx = frame_idx
-        self.track_id = track_id
-        self.device = bbox.device
 
         # convert bbox to [cx, cy, area, aspect_ratio] format
         x1, y1, x2, y2 = bbox
@@ -23,11 +24,9 @@ class Track:
         self._mean, self._covariance = self.kf.initiate(torch.tensor([cx, cy, s, r], device=self.device))
 
         self.feature = feature
-        self.time_since_update = 0
         self.hits = 1
         self.age = 0
         self.history: list[tuple[int, int, int]] = [(frame_idx, int(cx.item()), int(cy.item()))]
-        self.track_length_vis = track_length_vis
 
     def predict(self) -> None:
         self._mean, self._covariance = self.kf.predict(self._mean, self._covariance)

@@ -1,21 +1,20 @@
 import torch
 from torch import Tensor
 
+from src.base import BaseTrack
 
-class GlobalTrack:
+
+class GlobalTrack(BaseTrack):
     def __init__(self, camera_id: int, frame_idx: int, global_track_id: int, local_track_id: int, bbox: Tensor, feature: Tensor, track_length_vis: int = 25):
+        super().__init__(track_id=global_track_id, bbox=bbox, track_length_vis=track_length_vis)
+
         self.checked_cameras: set[int] = set()
 
-        self.track_id = global_track_id
         self.track_id_map: dict[int, int] = {}
-        self.device = bbox.device
 
         self.feature_map: dict[int, Tensor] = {}
         self.last_frame_idx = frame_idx
-        self.time_since_update = 0
-        self.hits = 0
         self.global_history: dict[int, list[tuple[int, int, int]]] = {}
-        self.track_length_vis = track_length_vis
 
         self.update(camera_id, frame_idx, local_track_id, bbox, feature)
 

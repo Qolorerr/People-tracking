@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import torch
 from scipy.optimize import linear_sum_assignment
@@ -7,19 +7,19 @@ import torch.nn.functional as F
 
 from .tracklet_manager import TrackManager
 from .global_tracklet import GlobalTrack
+from src.base import BaseTrackManager
 
 
-class GlobalTrackManager:
+class GlobalTrackManager(BaseTrackManager):
     def __init__(self,
                  tracklet_expiration: int = 25,
                  match_threshold: float = 0.7,
                  device='cuda'):
-        self.tracks: list[GlobalTrack] = []
-        self.next_global_id = 0
-        self.tracklet_expiration = tracklet_expiration
+        super().__init__(tracklet_expiration=tracklet_expiration, device=device)
+
+        self.tracks = cast(list[GlobalTrack], self.tracks)
         self.match_threshold = match_threshold
         self.camera_managers: dict[int, TrackManager] = {}
-        self.device = device
 
     def update(self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
         if camera_id not in self.camera_managers:
@@ -92,6 +92,6 @@ class GlobalTrackManager:
             bbox = local_active_tracks[local_track_idx]['bbox']
             feature = local_active_tracks[local_track_idx]['feature']
 
-            new_track = GlobalTrack(camera_id, frame_idx, self.next_global_id, local_track_id, bbox, feature)
+            new_track = GlobalTrack(camera_id, frame_idx, self.next_id, local_track_id, bbox, feature)
             self.tracks.append(new_track)
-            self.next_global_id += 1
+            self.next_id += 1

@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
+from src.base import BaseTrackManager
 from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin, \
     LoadAndSaveParamsMixin
 
@@ -40,7 +41,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.feature_extractor_model: nn.Module = feature_extractor_model
         self.config: DictConfig = config
 
-        self.tracklet_master: TrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.tracklet_master: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
         self.visualizer = TrackVisualizer()
         self.tracklet_validator = TrackValidator()
 
@@ -189,6 +190,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         return self.metric_store.get_metrics_as_dict()
 
     def _tune_val_epoch(self, epoch: int) -> dict[str, float]:
+        if not isinstance(self.tracklet_master, TrackManager):
+            return {}
+
         self.set_model_mode('eval')
         self.metric_store.reset()
         self._calc_wrt_step(0, len(self.val_dataloader), 0)
