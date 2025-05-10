@@ -159,6 +159,9 @@ tracklet_master:
   appearance_weight: 0.575
   match_threshold: 0.4275
   tracklet_expiration: 25
+  adapt_params:
+    adapt_weights:
+      delta: 0.001
 
 visualizer:
   track_length: 100
