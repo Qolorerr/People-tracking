@@ -64,29 +64,32 @@ class GlobalTrackManager(BaseTrackManager):
                 unmatched_local_tracks.remove(local_track_idx)
                 continue
 
-        # appearance similarity
-        global_features: Tensor = torch.cat([self.tracks[idx].get_features() for idx in unmatched_global_tracks])
-        global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
-        local_features: Tensor = torch.stack([local_active_tracks[idx].feature for idx in unmatched_local_tracks])
-        local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
-        appearance_sim: Tensor = torch.mm(global_features_norm, local_features_norm.t())
-        cost_matrix: Tensor = 1 - appearance_sim
-
-        # Hungarian algorithm
-        cost_matrix_np = cost_matrix.cpu().detach().numpy()
-        try:
-            row_ind, col_ind = linear_sum_assignment(cost_matrix_np)
-            row_ind = torch.from_numpy(row_ind).to(self.device)
-            col_ind = torch.from_numpy(col_ind).to(self.device)
-
-            matches = []
-            for r, c in zip(row_ind, col_ind):
-                if cost_matrix[r, c] <= self.match_threshold:
-                    matches.append((unmatched_global_tracks[r.item()], unmatched_local_tracks[c.item()]))
-
-        except Exception as e:
-            print("Got exception:", e)
+        if len(unmatched_global_tracks) == 0 or len(unmatched_local_tracks) == 0:
             matches: list[tuple[int, int]] = []
+        else:
+            # appearance similarity
+            global_features: Tensor = torch.cat([self.tracks[idx].get_features() for idx in unmatched_global_tracks])
+            global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
+            local_features: Tensor = torch.stack([local_active_tracks[idx].feature for idx in unmatched_local_tracks])
+            local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
+            appearance_sim: Tensor = torch.mm(global_features_norm, local_features_norm.t())
+            cost_matrix: Tensor = 1 - appearance_sim
+
+            # Hungarian algorithm
+            cost_matrix_np = cost_matrix.cpu().detach().numpy()
+            try:
+                row_ind, col_ind = linear_sum_assignment(cost_matrix_np)
+                row_ind = torch.from_numpy(row_ind).to(self.device)
+                col_ind = torch.from_numpy(col_ind).to(self.device)
+
+                matches = []
+                for r, c in zip(row_ind, col_ind):
+                    if cost_matrix[r, c] <= self.match_threshold:
+                        matches.append((unmatched_global_tracks[r.item()], unmatched_local_tracks[c.item()]))
+
+            except Exception as e:
+                print("Got exception:", e)
+                matches: list[tuple[int, int]] = []
 
         # update matched tracks
         for global_track_idx, local_track_idx in matches:
@@ -117,7 +120,7 @@ class GlobalTrackManager(BaseTrackManager):
                     'feature': local_track.feature,
                     'hits': track.hits,
                     'age': local_track.age,
-                    'history': local_track.get_frames_to_vis(frame_idx)
+                    'history': track.get_frames_to_vis(camera_id, frame_idx)
                 })
 
         return active_tracks

@@ -42,9 +42,11 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.config: DictConfig = config
 
         self.tracklet_manager: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.is_multicam: bool = False
         if isinstance(self.tracklet_manager, GlobalTrackManager):
             for camera_id in self.val_dataloader.camera_ids:
                 self.tracklet_manager.add_camera(camera_id)
+            self.is_multicam = True
 
         self.visualizer = TrackVisualizer()
         self.tracklet_validator = TrackValidator()
@@ -299,20 +301,20 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), 0)
 
         tbar = tqdm(self.val_dataloader, desc="Val")
-        for frame_idx, data in enumerate(tbar):
+        for idx, data in enumerate(tbar):
             self.metric_store.update({"load time": time.time() - end_time})
 
-            active_tracks = self.evaluate(frame_idx, data)
+            active_tracks = self.evaluate(data)
             self.metric_store.update({"proc time": time.time() - end_time})
 
-            if frame_idx % self.log_per_iter == 0:
+            if idx % self.log_per_iter == 0:
                 self.metric_store.print_metrics(tbar, epoch, "VAL")
-                self._visualize_frame(data[0], active_tracks)
+                self._visualize_frame(data[1], active_tracks)
 
             self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
             end_time = time.time()
-            self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), frame_idx)
+            self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), idx)
 
         self.metric_store.reset()
         self.metric_store.update(self.tracklet_validator.get_metrics())
@@ -380,20 +382,28 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         return loss_summary
 
-    def evaluate(self, frame_idx: int,
-                 data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
-        _, frame, true_bboxes, true_labels, is_new_video = data
+    def evaluate(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
+        frame_info, frame, true_bboxes, true_labels, is_new_video = data
 
         true_bboxes, true_labels = self._filter_degenerate_bboxes(bboxes=true_bboxes.squeeze(0),
                                                                   labels=true_labels.squeeze(0))
 
+        camera_id, frame_idx = frame_info[0].int()
+        camera_id, frame_idx = camera_id.item(), frame_idx.item()
         if is_new_video.item():
             self.tracklet_manager.reset()
 
         detections = self.process_frame(frame)
-        active_tracks = self.tracklet_manager.update(frame_idx=frame_idx,
-                                                     bboxes=detections['bboxes'],
-                                                     features=detections['features'])
+
+        kwargs = {
+            "frame_idx": frame_idx,
+            "bboxes": detections['bboxes'],
+            "features": detections['features']
+        }
+        if self.is_multicam:
+            kwargs["camera_id"] = camera_id
+
+        active_tracks = self.tracklet_manager.update(**kwargs)
 
         self.tracklet_validator.validate_frame(pred_tracks=active_tracks,
                                                true_bboxes=true_bboxes,

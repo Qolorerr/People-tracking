@@ -154,14 +154,28 @@ feature_extractor:
   model_path: D:\Programs\Projects\People-detection\log\osnet_x1_0\model\model.pth.tar-60
 
 tracklet_master:
-  _target_: src.utils.AdaptiveTrackManager
-  motion_weight: 0.425
-  appearance_weight: 0.575
-  match_threshold: 0.4275
-  tracklet_expiration: 100
-  adapt_params:
-    adapt_weights:
-      delta: 0.001
+  _target_: src.utils.GlobalTrackManager
+  camera_manager_instance:
+    _target_: src.utils.AdaptiveTrackManager
+    motion_weight: 0.425
+    appearance_weight: 0.575
+    match_threshold: 0.4275
+    tracklet_expiration: 100
+    adapt_params:
+      adapt_weights:
+        delta: 0.001
+  tracklet_expiration: 500
+  match_threshold: 0.7
+
+#tracklet_master:
+#  _target_: src.utils.AdaptiveTrackManager
+#  motion_weight: 0.425
+#  appearance_weight: 0.575
+#  match_threshold: 0.4275
+#  tracklet_expiration: 100
+#  adapt_params:
+#    adapt_weights:
+#      delta: 0.001
 
 visualizer:
   track_length: 100
@@ -207,4 +221,4 @@ live_tester:
   log_dir: saved/runs
   log_per_iter: 10
 
-resume: D:\Programs\Projects\People-tracking\outputs\2025-04-20\21-54-23\saved\checkpoints\YOLO11n-osnet_x1_0\04-20_21-54\checkpoint-epoch10.pth
+resume:

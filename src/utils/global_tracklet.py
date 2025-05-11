@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import torch
 from torch import Tensor
 
@@ -14,6 +16,7 @@ class GlobalTrack(BaseTrack):
         self.local_track_map: dict[int, Track] = {}
 
         self.last_frame_idx = frame_idx
+        self.global_history: defaultdict[int, list[tuple[int, int, int]]] = defaultdict(list)
 
         self.update(camera_id, frame_idx, local_track)
 
@@ -21,14 +24,21 @@ class GlobalTrack(BaseTrack):
         self.time_since_update = max(frame_idx - self.last_frame_idx, 0)
 
     def update(self, camera_id: int, frame_idx: int, local_track: Track) -> None:
+        self.checked_cameras.add(camera_id)
+
         self.local_track_map[camera_id] = local_track
 
         self.last_frame_idx = frame_idx
         self.time_since_update = 0
         self.hits += 1
+        self.global_history[camera_id].append(local_track.history[-1])
 
     def is_contains_track(self, camera_id: int, track_id: int) -> bool:
         return camera_id in self.checked_cameras and self.local_track_map[camera_id].track_id == track_id
 
     def get_features(self) -> Tensor:
         return torch.stack([local_track.feature for local_track in self.local_track_map.values()])
+
+    def get_frames_to_vis(self, camera_id: int, curr_frame_idx: int) -> list[tuple[int, int, int]]:
+        idx_from = curr_frame_idx - (self.track_length_vis - 1)
+        return list(filter(lambda record: idx_from <= record[0] <= curr_frame_idx, self.global_history[camera_id]))
