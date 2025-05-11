@@ -32,17 +32,3 @@ class GlobalTrack(BaseTrack):
 
     def get_features(self) -> Tensor:
         return torch.stack([local_track.feature for local_track in self.local_track_map.values()])
-
-    # def get_state(self) -> Tensor:
-    #     cx, cy, s, r = self._mean[:4]
-    #     w = torch.sqrt(torch.abs(s * r))
-    #     h = torch.sqrt(torch.abs(s / r))
-    #     x1 = cx - w / 2
-    #     y1 = cy - h / 2
-    #     x2 = cx + w / 2
-    #     y2 = cy + h / 2
-    #     return torch.stack([x1, y1, x2, y2])
-
-    # def get_frames_to_vis(self, curr_frame_idx: int) -> list[tuple[int, int, int]]:
-    #     idx_from = curr_frame_idx - (self.track_length_vis - 1)
-    #     return list(filter(lambda record: idx_from <= record[0] <= curr_frame_idx, self.global_history))

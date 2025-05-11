@@ -82,7 +82,7 @@ train_loader:
   num_workers: 4
 
 val_loader:
-  _target_: torch.utils.data.DataLoader
+  _target_: src.base.BaseDataLoader
   dataset:
     _target_: src.datasets.SportsMOTDataset
     root: ${dataset.data_dir}
@@ -102,7 +102,7 @@ val_loader:
   num_workers: 1
 
 test_loader:
-  _target_: torch.utils.data.DataLoader
+  _target_: src.base.BaseDataLoader
   dataset:
     _target_: src.datasets.SportsMOTDataset
     root: ${dataset.data_dir}

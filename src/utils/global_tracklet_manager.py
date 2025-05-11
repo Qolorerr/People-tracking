@@ -1,3 +1,4 @@
+import copy
 from typing import Any, cast
 
 import torch
@@ -12,6 +13,7 @@ from src.base import BaseTrackManager
 
 class GlobalTrackManager(BaseTrackManager):
     def __init__(self,
+                 camera_manager_instance: BaseTrackManager,
                  tracklet_expiration: int = 25,
                  match_threshold: float = 0.7,
                  device='cuda'):
@@ -19,7 +21,14 @@ class GlobalTrackManager(BaseTrackManager):
 
         self.tracks = cast(list[GlobalTrack], self.tracks)
         self.match_threshold = match_threshold
+        self.camera_manager_instance = camera_manager_instance
         self.camera_managers: dict[int, BaseTrackManager] = {}
+
+    def add_camera(self, camera_id: int) -> None:
+        new_manager = copy.deepcopy(self.camera_manager_instance)
+        new_manager.reset()
+
+        self.camera_managers[camera_id] = new_manager
 
     def update(self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
         if camera_id not in self.camera_managers:

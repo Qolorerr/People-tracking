@@ -7,12 +7,13 @@ from torch.utils.data import DataLoader
 from ultralytics import YOLO
 
 from src import Trainer
+from src.base import BaseDataLoader
 
 
 @hydra.main(version_base="1.1", config_path="config", config_name="config")
 def main(cfg: DictConfig):
     train_dataloader: DataLoader = instantiate(cfg.train_loader)
-    val_dataloader: DataLoader = instantiate(cfg.val_loader)
+    val_dataloader: BaseDataLoader = instantiate(cfg.val_loader)
 
     accelerator: Accelerator = instantiate(cfg.accelerator)
 

@@ -18,15 +18,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
-from src.base import BaseTrackManager
+from src.base import BaseTrackManager, BaseDataLoader
 from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin, \
-    LoadAndSaveParamsMixin
+    LoadAndSaveParamsMixin, GlobalTrackManager
 
 
 class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(self,
                  train_dataloader: DataLoader,
-                 val_dataloader: DataLoader,
+                 val_dataloader: BaseDataLoader,
                  accelerator: Accelerator,
                  detection_model: YOLO | None,
                  feature_extractor_model: nn.Module,
@@ -34,14 +34,18 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                  resume: str,
                  ):
         self.train_dataloader: DataLoader = train_dataloader
-        self.val_dataloader: DataLoader = val_dataloader
+        self.val_dataloader: BaseDataLoader = val_dataloader
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
         self.detection_model: YOLO | None = detection_model
         self.feature_extractor_model: nn.Module = feature_extractor_model
         self.config: DictConfig = config
 
-        self.tracklet_master: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.tracklet_manager: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
+        if isinstance(self.tracklet_manager, GlobalTrackManager):
+            for camera_id in self.val_dataloader.camera_ids:
+                self.tracklet_manager.add_camera(camera_id)
+
         self.visualizer = TrackVisualizer()
         self.tracklet_validator = TrackValidator()
 
@@ -190,7 +194,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         return self.metric_store.get_metrics_as_dict()
 
     def _tune_val_epoch(self, epoch: int) -> dict[str, float]:
-        if not isinstance(self.tracklet_master, TrackManager):
+        if not isinstance(self.tracklet_manager, TrackManager):
             return {}
 
         self.set_model_mode('eval')
@@ -215,15 +219,15 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             max=self.tuner_params.max_r,
         )
         motion_weights = torch.clamp(torch.linspace(
-            self.tracklet_master.motion_weight - self.tuner_params.params.motion_weight.radius,
-            self.tracklet_master.motion_weight + self.tuner_params.params.motion_weight.radius,
+            self.tracklet_manager.motion_weight - self.tuner_params.params.motion_weight.radius,
+            self.tracklet_manager.motion_weight + self.tuner_params.params.motion_weight.radius,
             self.tuner_params.params.motion_weight.steps),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
         )
         match_thresholds = torch.clamp(torch.linspace(
-            self.tracklet_master.match_threshold - self.tuner_params.params.match_threshold.radius,
-            self.tracklet_master.match_threshold + self.tuner_params.params.match_threshold.radius,
+            self.tracklet_manager.match_threshold - self.tuner_params.params.match_threshold.radius,
+            self.tracklet_manager.match_threshold + self.tuner_params.params.match_threshold.radius,
             self.tuner_params.params.match_threshold.steps),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
@@ -246,15 +250,15 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                         continue
                     checked.add(params)
 
-                    self.confidence_threshold, self.tracklet_master.motion_weight, self.tracklet_master.match_threshold = params
-                    self.tracklet_master.appearance_weight = 1 - self.tracklet_master.motion_weight
+                    self.confidence_threshold, self.tracklet_manager.motion_weight, self.tracklet_manager.match_threshold = params
+                    self.tracklet_manager.appearance_weight = 1 - self.tracklet_manager.motion_weight
 
                     self.tracklet_validator.reset()
 
                     for frame_idx, data in enumerate(self.val_dataloader):
                         self.evaluate(frame_idx, data)
 
-                    self.tracklet_master.reset()
+                    self.tracklet_manager.reset()
 
                     val_metrics = self.tracklet_validator.get_metrics()
                     score = 0.5 * val_metrics['MOTA'] + 0.5 * val_metrics['IDF1']
@@ -384,12 +388,12 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                                                                   labels=true_labels.squeeze(0))
 
         if is_new_video.item():
-            self.tracklet_master.reset()
+            self.tracklet_manager.reset()
 
         detections = self.process_frame(frame)
-        active_tracks = self.tracklet_master.update(frame_idx=frame_idx,
-                                                    bboxes=detections['bboxes'],
-                                                    features=detections['features'])
+        active_tracks = self.tracklet_manager.update(frame_idx=frame_idx,
+                                                     bboxes=detections['bboxes'],
+                                                     features=detections['features'])
 
         self.tracklet_validator.validate_frame(pred_tracks=active_tracks,
                                                true_bboxes=true_bboxes,
