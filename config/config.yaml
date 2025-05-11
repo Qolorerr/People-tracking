@@ -213,7 +213,9 @@ tester:
   log_per_iter: 10
 
 live_tester:
-  rtsp_url: "rtsp://192.168.1.221:8080/h264.sdp"
+  rtsp_urls:
+  - "rtsp://192.168.1.221:8080/h264.sdp"
+  - "rtsp://192.168.1.176:8080/h264.sdp"
   transforms:
     _target_: albumentations.Compose
     transforms: ${test_transforms}

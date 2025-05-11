@@ -68,7 +68,13 @@ class GlobalTrackManager(BaseTrackManager):
             matches: list[tuple[int, int]] = []
         else:
             # appearance similarity
-            global_features: Tensor = torch.cat([self.tracks[idx].get_features() for idx in unmatched_global_tracks])
+            temp_unmatched_global_tracks: list[int] = []
+            global_features_list: list[Tensor] = []
+            for idx in unmatched_global_tracks:
+                track_features = self.tracks[idx].get_features()
+                temp_unmatched_global_tracks.extend([idx] * len(track_features))
+                global_features_list.append(track_features)
+            global_features: Tensor = torch.cat(global_features_list)
             global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
             local_features: Tensor = torch.stack([local_active_tracks[idx].feature for idx in unmatched_local_tracks])
             local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
@@ -85,7 +91,7 @@ class GlobalTrackManager(BaseTrackManager):
                 matches = []
                 for r, c in zip(row_ind, col_ind):
                     if cost_matrix[r, c] <= self.match_threshold:
-                        matches.append((unmatched_global_tracks[r.item()], unmatched_local_tracks[c.item()]))
+                        matches.append((temp_unmatched_global_tracks[r.item()], unmatched_local_tracks[c.item()]))
 
             except Exception as e:
                 print("Got exception:", e)

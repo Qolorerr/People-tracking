@@ -12,4 +12,4 @@ from .losses import CrossEntropyLoss
 from .metrics import MetricsMeter, AverageMeter
 from .mixins import CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin
 
-from .video_window import VideoWindow
+from .video_window import VideoWindow, CameraWorker
