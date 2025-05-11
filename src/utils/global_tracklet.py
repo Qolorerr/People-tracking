@@ -2,51 +2,36 @@ import torch
 from torch import Tensor
 
 from src.base import BaseTrack
+from src.utils import Track
 
 
 class GlobalTrack(BaseTrack):
-    def __init__(self, camera_id: int, frame_idx: int, global_track_id: int, local_track_id: int, bbox: Tensor, feature: Tensor, track_length_vis: int = 25):
-        super().__init__(track_id=global_track_id, bbox=bbox, track_length_vis=track_length_vis)
+    def __init__(self, camera_id: int, frame_idx: int, global_track_id: int, local_track: Track, track_length_vis: int = 25):
+        super().__init__(track_id=global_track_id, bbox=local_track.get_state(), track_length_vis=track_length_vis)
 
         self.checked_cameras: set[int] = set()
 
-        self.track_id_map: dict[int, int] = {}
+        self.local_track_map: dict[int, Track] = {}
 
-        self.feature_map: dict[int, Tensor] = {}
         self.last_frame_idx = frame_idx
-        self.global_history: dict[int, list[tuple[int, int, int]]] = {}
 
-        self.update(camera_id, frame_idx, local_track_id, bbox, feature)
+        self.update(camera_id, frame_idx, local_track)
 
     def iterate(self, frame_idx: int) -> None:
         self.time_since_update = max(frame_idx - self.last_frame_idx, 0)
 
-    def update(self, camera_id: int, frame_idx: int, track_id: int, bbox: Tensor, feature: Tensor) -> None:
-        x1, y1, x2, y2 = bbox
-        cx: Tensor = (x1 + x2) / 2
-        cy: Tensor = (y1 + y2) / 2
-
-        self.track_id_map[camera_id] = track_id
-
-        if camera_id not in self.checked_cameras:
-            # update appearance feature with EMA
-            self.feature_map[camera_id] = 0.9 * self.feature_map[camera_id] + 0.1 * feature
-            self.global_history[camera_id].append((frame_idx, int(cx.item()), int(cy.item())))
-        else:
-            self.checked_cameras.add(camera_id)
-
-            self.feature_map[camera_id] = feature
-            self.global_history[camera_id] = [(frame_idx, int(cx.item()), int(cy.item()))]
+    def update(self, camera_id: int, frame_idx: int, local_track: Track) -> None:
+        self.local_track_map[camera_id] = local_track
 
         self.last_frame_idx = frame_idx
         self.time_since_update = 0
         self.hits += 1
 
     def is_contains_track(self, camera_id: int, track_id: int) -> bool:
-        return camera_id in self.checked_cameras and self.track_id_map[camera_id] == track_id
+        return camera_id in self.checked_cameras and self.local_track_map[camera_id].track_id == track_id
 
     def get_features(self) -> Tensor:
-        return torch.stack([feature for feature in self.feature_map.values()])
+        return torch.stack([local_track.feature for local_track in self.local_track_map.values()])
 
     # def get_state(self) -> Tensor:
     #     cx, cy, s, r = self._mean[:4]
