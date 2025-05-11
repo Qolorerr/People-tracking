@@ -26,7 +26,7 @@ class BaseDataset(Dataset):
 
     def __getitem__(
         self, index: int
-    ) -> (Tensor, Tensor, LongTensor, Tensor):
+    ) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
         raise NotImplementedError
 
     def __repr__(self) -> str:

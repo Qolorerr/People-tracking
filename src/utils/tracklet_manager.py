@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import torch
 from scipy.optimize import linear_sum_assignment
@@ -7,22 +7,22 @@ import torch.nn.functional as F
 
 from .tracklet import Track
 from .metrics import compute_iou_batch
+from src.base import BaseTrackManager
 
 
-class TrackManager:
+class TrackManager(BaseTrackManager):
     def __init__(self,
                  tracklet_expiration: int = 25,
                  motion_weight: float = 0.5,
                  appearance_weight: float = 0.5,
                  match_threshold: float = 0.7,
                  device='cuda'):
-        self.tracks: list[Track] = []
-        self.next_id = 0
-        self.tracklet_expiration = tracklet_expiration
+        super().__init__(tracklet_expiration=tracklet_expiration, device=device)
+
+        self.tracks = cast(list[Track], self.tracks)
         self.motion_weight = motion_weight
         self.appearance_weight = appearance_weight
         self.match_threshold = match_threshold
-        self.device = device
 
     def update(self, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
         if not isinstance(bboxes, Tensor):
@@ -101,13 +101,6 @@ class TrackManager:
                 unmatched_detections: list[int] = list(range(len(bboxes)))
         return matches, unmatched_detections
 
-    def _clean(self) -> None:
-        self.tracks = [t for t in self.tracks if t.time_since_update <= self.tracklet_expiration]
-
-    def reset(self):
-        self.tracks = []
-        self.next_id = 0
-
     @staticmethod
     def _compute_association(pred_tracks: list[dict[str, Any]],
                              true_bboxes: Tensor,
@@ -134,6 +127,3 @@ class TrackManager:
                 unmatched_true.append(true_labels[c].item())
 
         return matches, unmatched_pred, unmatched_true
-
-    def get_metrics(self) -> dict[str, float]:
-        return dict()

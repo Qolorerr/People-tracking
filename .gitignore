@@ -3,3 +3,5 @@ outputs/
 
 TODO
 reid_test.ipynb
+
+*.pyc

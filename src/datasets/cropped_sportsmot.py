@@ -54,13 +54,15 @@ class CroppedSportsMOTDataset(BaseDataset):
             for frame_id in annotations.keys():
                 self.samples.append((video_idx, frame_id))
 
-    def __getitem__(self, idx) -> (Tensor, Tensor, LongTensor, Tensor):
+    def __getitem__(self, idx) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
         video_idx, frame_id = self.samples[idx]
         video = self.video_info[video_idx]
 
         frame_path = os.path.join(video['im_dir'], f"{frame_id:06d}{video['im_ext']}")
         frame = cv2.imread(frame_path)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        frame_id_tensor = torch.tensor([0, idx], dtype=torch.int64)
 
         try:
             transformed = self.transforms(image=frame)
@@ -75,4 +77,4 @@ class CroppedSportsMOTDataset(BaseDataset):
 
         label = video['annotations'].get(frame_id, 0)
 
-        return frame, torch.tensor([]), torch.tensor(label, dtype=torch.long), torch.tensor([])
+        return frame_id_tensor, frame, torch.tensor([]), torch.tensor(label, dtype=torch.long), torch.tensor([])

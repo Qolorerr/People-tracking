@@ -18,14 +18,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
+from src.base import BaseTrackManager, BaseDataLoader
 from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin, \
-    LoadAndSaveParamsMixin
+    LoadAndSaveParamsMixin, GlobalTrackManager
 
 
 class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(self,
                  train_dataloader: DataLoader,
-                 val_dataloader: DataLoader,
+                 val_dataloader: BaseDataLoader,
                  accelerator: Accelerator,
                  detection_model: YOLO | None,
                  feature_extractor_model: nn.Module,
@@ -33,14 +34,20 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                  resume: str,
                  ):
         self.train_dataloader: DataLoader = train_dataloader
-        self.val_dataloader: DataLoader = val_dataloader
+        self.val_dataloader: BaseDataLoader = val_dataloader
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
         self.detection_model: YOLO | None = detection_model
         self.feature_extractor_model: nn.Module = feature_extractor_model
         self.config: DictConfig = config
 
-        self.tracklet_master: TrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.tracklet_manager: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.is_multicam: bool = False
+        if isinstance(self.tracklet_manager, GlobalTrackManager):
+            for camera_id in self.val_dataloader.camera_ids:
+                self.tracklet_manager.add_camera(camera_id)
+            self.is_multicam = True
+
         self.visualizer = TrackVisualizer()
         self.tracklet_validator = TrackValidator()
 
@@ -189,6 +196,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         return self.metric_store.get_metrics_as_dict()
 
     def _tune_val_epoch(self, epoch: int) -> dict[str, float]:
+        if not isinstance(self.tracklet_manager, TrackManager):
+            return {}
+
         self.set_model_mode('eval')
         self.metric_store.reset()
         self._calc_wrt_step(0, len(self.val_dataloader), 0)
@@ -211,15 +221,15 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             max=self.tuner_params.max_r,
         )
         motion_weights = torch.clamp(torch.linspace(
-            self.tracklet_master.motion_weight - self.tuner_params.params.motion_weight.radius,
-            self.tracklet_master.motion_weight + self.tuner_params.params.motion_weight.radius,
+            self.tracklet_manager.motion_weight - self.tuner_params.params.motion_weight.radius,
+            self.tracklet_manager.motion_weight + self.tuner_params.params.motion_weight.radius,
             self.tuner_params.params.motion_weight.steps),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
         )
         match_thresholds = torch.clamp(torch.linspace(
-            self.tracklet_master.match_threshold - self.tuner_params.params.match_threshold.radius,
-            self.tracklet_master.match_threshold + self.tuner_params.params.match_threshold.radius,
+            self.tracklet_manager.match_threshold - self.tuner_params.params.match_threshold.radius,
+            self.tracklet_manager.match_threshold + self.tuner_params.params.match_threshold.radius,
             self.tuner_params.params.match_threshold.steps),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
@@ -242,15 +252,15 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                         continue
                     checked.add(params)
 
-                    self.confidence_threshold, self.tracklet_master.motion_weight, self.tracklet_master.match_threshold = params
-                    self.tracklet_master.appearance_weight = 1 - self.tracklet_master.motion_weight
+                    self.confidence_threshold, self.tracklet_manager.motion_weight, self.tracklet_manager.match_threshold = params
+                    self.tracklet_manager.appearance_weight = 1 - self.tracklet_manager.motion_weight
 
                     self.tracklet_validator.reset()
 
                     for frame_idx, data in enumerate(self.val_dataloader):
                         self.evaluate(frame_idx, data)
 
-                    self.tracklet_master.reset()
+                    self.tracklet_manager.reset()
 
                     val_metrics = self.tracklet_validator.get_metrics()
                     score = 0.5 * val_metrics['MOTA'] + 0.5 * val_metrics['IDF1']
@@ -291,20 +301,20 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), 0)
 
         tbar = tqdm(self.val_dataloader, desc="Val")
-        for frame_idx, data in enumerate(tbar):
+        for idx, data in enumerate(tbar):
             self.metric_store.update({"load time": time.time() - end_time})
 
-            active_tracks = self.evaluate(frame_idx, data)
+            active_tracks = self.evaluate(data)
             self.metric_store.update({"proc time": time.time() - end_time})
 
-            if frame_idx % self.log_per_iter == 0:
+            if idx % self.log_per_iter == 0:
                 self.metric_store.print_metrics(tbar, epoch, "VAL")
-                self._visualize_frame(data[0], active_tracks)
+                self._visualize_frame(data[1], active_tracks)
 
             self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
             end_time = time.time()
-            self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), frame_idx)
+            self._calc_wrt_step(epoch // self.val_per_epochs, len(self.val_dataloader), idx)
 
         self.metric_store.reset()
         self.metric_store.update(self.tracklet_validator.get_metrics())
@@ -354,8 +364,8 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         filtered_labels = labels[valid_mask]
         return filtered_bboxes, filtered_labels
 
-    def forward_backward(self, data: tuple[Tensor, Tensor, LongTensor, Tensor]) -> dict[str, float]:
-        frames, _, labels, _ = data
+    def forward_backward(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> dict[str, float]:
+        _, frames, _, labels, _ = data
 
         self.optimizer.zero_grad()
 
@@ -372,20 +382,28 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         return loss_summary
 
-    def evaluate(self, frame_idx: int,
-                 data: tuple[Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
-        frame, true_bboxes, true_labels, is_new_video = data
+    def evaluate(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
+        frame_info, frame, true_bboxes, true_labels, is_new_video = data
 
         true_bboxes, true_labels = self._filter_degenerate_bboxes(bboxes=true_bboxes.squeeze(0),
                                                                   labels=true_labels.squeeze(0))
 
+        camera_id, frame_idx = frame_info[0].int()
+        camera_id, frame_idx = camera_id.item(), frame_idx.item()
         if is_new_video.item():
-            self.tracklet_master.reset()
+            self.tracklet_manager.reset()
 
         detections = self.process_frame(frame)
-        active_tracks = self.tracklet_master.update(frame_idx=frame_idx,
-                                                    bboxes=detections['bboxes'],
-                                                    features=detections['features'])
+
+        kwargs = {
+            "frame_idx": frame_idx,
+            "bboxes": detections['bboxes'],
+            "features": detections['features']
+        }
+        if self.is_multicam:
+            kwargs["camera_id"] = camera_id
+
+        active_tracks = self.tracklet_manager.update(**kwargs)
 
         self.tracklet_validator.validate_frame(pred_tracks=active_tracks,
                                                true_bboxes=true_bboxes,

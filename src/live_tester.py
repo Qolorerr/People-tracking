@@ -11,6 +11,7 @@ import torch
 import threading
 from queue import Queue
 
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
 from accelerate import Accelerator
 from hydra.utils import instantiate
@@ -21,7 +22,7 @@ from torch.utils import tensorboard
 from ultralytics import YOLO
 
 from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow, MetricsMeter, \
-    LoadAndSaveParamsMixin
+    LoadAndSaveParamsMixin, GlobalTrackManager, CameraWorker
 
 
 class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
@@ -50,8 +51,14 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.feature_extractor_model.eval()
 
         cfg_tester = self.config["live_tester"]
-        self.rtsp_url = cfg_tester.rtsp_url
+        self.rtsp_urls = cfg_tester.rtsp_urls
         self.transforms = instantiate(cfg_tester.transforms)
+
+        self.is_multicam: bool = False
+        if isinstance(self.tracklet_master, GlobalTrackManager):
+            for camera_id in range(len(self.rtsp_urls)):
+                self.tracklet_master.add_camera(camera_id)
+            self.is_multicam = True
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
@@ -67,7 +74,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         ]
         for info in info_to_write:
             self.writer.add_text(f"info/{info}", str(self.config[info]))
-        self.wrt_mode, self.wrt_step = "test", 0
+        self.wrt_mode = "test"
         self.log_step: int = cfg_tester.get("log_per_iter", 1)
         self.logger = logging.getLogger(self.__class__.__name__)
         self.metric_store = MetricsMeter(writer=self.writer)
@@ -75,28 +82,35 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.confidence_threshold = self.config["confidence_threshold"]
         self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
 
-        self.frame_queue = Queue(maxsize=2)
         self.running = False
-        self.frame_idx = 1
+        self.frame_idxes = [1 for _ in range(len(self.rtsp_urls))]
+
+        self.app = QApplication(sys.argv)
+        self.window = VideoWindow(len(self.rtsp_urls))
+        self.window.closed.connect(lambda: setattr(self, 'running', False))
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frames)
 
         if resume:
             self._resume_checkpoint(resume)
 
-    def _capture_frames(self):
-        cap = cv2.VideoCapture(self.rtsp_url)
+    def _capture_frames(self, camera_id: int, worker: CameraWorker):
+        cap = cv2.VideoCapture(self.rtsp_urls[camera_id])
         while self.running:
             ret, frame = cap.read()
             if not ret:
                 print("Connection lost, attempting reconnect...")
-                cap = cv2.VideoCapture(self.rtsp_url)
+                cap = cv2.VideoCapture(self.rtsp_urls[camera_id])
                 continue
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            if self.frame_queue.full():
-                self.frame_queue.get()
-            self.frame_queue.put(frame)
-            self.frame_idx += 1
-            self.wrt_step += 1
+            with worker.queue_lock:
+                if worker.queue.full():
+                    worker.queue.get()
+                worker.queue.put(frame)
+
+            self.frame_idxes[camera_id] += 1
 
     def _extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
         with torch.no_grad():
@@ -125,27 +139,37 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             'features': features
         }
 
-    def _process_frame(self, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def _process_frame(self, camera_id: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
+        frame_idx = self.frame_idxes[camera_id]
+
         try:
             transformed = self.transforms(image=frame)
         except Exception as e:
-            print("Exception:", self.frame_idx, datetime.now())
+            print("Exception:", frame_idx, datetime.now())
             raise e
         frame_tensor = transformed["image"].float().to(self.device) / 255.0
 
         detections = self._extract_bboxes(frame_tensor.unsqueeze(0))
-        active_tracks = self.tracklet_master.update(frame_idx=self.frame_idx,
-                                                    bboxes=detections['bboxes'],
-                                                    features=detections['features'])
+
+        kwargs = {
+            "frame_idx": frame_idx,
+            "bboxes": detections['bboxes'],
+            "features": detections['features']
+        }
+        if self.is_multicam:
+            kwargs["camera_id"] = camera_id
+
+        active_tracks = self.tracklet_master.update(**kwargs)
 
         track_manager_metrics = self.tracklet_master.get_metrics()
         self.metric_store.update(track_manager_metrics)
 
-        tracker_params = self.get_params()
-        self.metric_store.update(tracker_params)
+        if isinstance(self.tracklet_master, LoadAndSaveParamsMixin):
+            tracker_params = self.get_params()
+            self.metric_store.update(tracker_params)
 
-        if self.log_step and self.frame_idx % self.log_step == 0:
-            self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
+        if self.log_step and frame_idx % self.log_step == 0:
+            self.metric_store.log_metrics(self.wrt_mode + f"/cam{camera_id}", frame_idx)
 
         img = frame_tensor.cpu().numpy().transpose(1, 2, 0)
         img = (img * 255).astype(np.uint8)
@@ -153,25 +177,35 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         return img
 
+    def update_frames(self):
+        if not self.running:
+            return
+        for worker, widget in zip(self.window.workers, self.window.camera_widgets):
+            with worker.queue_lock:
+                if not worker.queue.empty():
+                    frame = worker.queue.get()
+
+                    processed_frame = self._process_frame(worker.camera_id, frame)
+
+                    widget.update_frame(self.frame_idxes[worker.camera_id], processed_frame)
+
     def run(self):
         self.running = True
-        capture_thread = threading.Thread(target=self._capture_frames)
-        capture_thread.start()
+        self.window.closed.connect(lambda: setattr(self, 'running', False))
 
-        app = QApplication(sys.argv)
-        window = VideoWindow()
-        window.closed.connect(lambda: setattr(self, 'running', False))
-        window.show()
+        self.timer.start(30)
 
-        while self.running:
-            if not self.frame_queue.empty():
-                frame = self.frame_queue.get()
-                processed_frame = self._process_frame(frame)
+        for i in range(len(self.rtsp_urls)):
+            worker = CameraWorker(i, self.window)
+            thread = threading.Thread(target=self._capture_frames, args=(i, worker,))
+            thread.start()
 
-                window.update_frame(processed_frame)
-                window.update_fps(self.frame_idx)
+            self.window.workers.append(worker)
+            self.window.threads.append(thread)
 
-                app.processEvents()
+        self.window.show()
+
+        self.app.exec()
 
     def _resume_checkpoint(self, resume_path: str) -> None:
         self.logger.info(f"Loading checkpoint : {resume_path}")
