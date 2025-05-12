@@ -17,12 +17,14 @@ from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin
 
 
 class Tester(CropBboxesOutOfFramesMixin):
-    def __init__(self,
-                 dataloader: DataLoader,
-                 accelerator: Accelerator,
-                 detection_model: YOLO | None,
-                 feature_extractor: Callable,
-                 config: DictConfig):
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        accelerator: Accelerator,
+        detection_model: YOLO | None,
+        feature_extractor: Callable,
+        config: DictConfig,
+    ):
         self.dataloader: DataLoader = dataloader
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
@@ -33,16 +35,15 @@ class Tester(CropBboxesOutOfFramesMixin):
         self.tracklet_master: TrackManager = instantiate(config.tracklet_master, device=self.device)
         self.visualizer = TrackVisualizer()
 
-        self.detection_model, self.feature_extractor = self.accelerator.prepare(self.detection_model,
-                                                                                self.feature_extractor)
+        self.detection_model, self.feature_extractor = self.accelerator.prepare(
+            self.detection_model, self.feature_extractor
+        )
 
         cfg_tester = self.config["tester"]
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
-        writer_dir = str(
-            os.path.join(cfg_tester["log_dir"], self.config["name"], start_time)
-        )
+        writer_dir = str(os.path.join(cfg_tester["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
             "crop_size",
@@ -57,7 +58,10 @@ class Tester(CropBboxesOutOfFramesMixin):
         self.log_step: int = cfg_tester.get("log_per_iter", 1)
 
         self.confidence_threshold = self.config["confidence_threshold"]
-        self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
+        self.person_reshape_h, self.person_reshape_w = (
+            self.config["person_reshape_h"],
+            self.config["person_reshape_w"],
+        )
 
         self.dataloader = self.accelerator.prepare(self.dataloader)
 
@@ -82,11 +86,7 @@ class Tester(CropBboxesOutOfFramesMixin):
             with torch.no_grad():
                 features = self.feature_extractor(batch)
 
-        return {
-            'bboxes': bboxes,
-            'confs': confs,
-            'features': features
-        }
+        return {"bboxes": bboxes, "confs": confs, "features": features}
 
     def test(self) -> None:
         tbar = tqdm(self.dataloader, desc="Test")
@@ -96,9 +96,11 @@ class Tester(CropBboxesOutOfFramesMixin):
 
             start_time = datetime.now()
             detections = self.process_frame(frame)
-            active_tracks = self.tracklet_master.update(frame_idx=self.wrt_step,
-                                                        bboxes=detections['bboxes'],
-                                                        features=detections['features'])
+            active_tracks = self.tracklet_master.update(
+                frame_idx=self.wrt_step,
+                bboxes=detections["bboxes"],
+                features=detections["features"],
+            )
             # pprint(active_tracks)
             processing_time = datetime.now() - start_time
 

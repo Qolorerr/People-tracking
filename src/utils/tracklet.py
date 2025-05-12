@@ -6,7 +6,14 @@ from src.base import BaseTrack
 
 
 class Track(BaseTrack):
-    def __init__(self, frame_idx: int, track_id: int, bbox: Tensor, feature: Tensor, track_length_vis: int = 25):
+    def __init__(
+        self,
+        frame_idx: int,
+        track_id: int,
+        bbox: Tensor,
+        feature: Tensor,
+        track_length_vis: int = 25,
+    ):
         super().__init__(track_id=track_id, bbox=bbox, track_length_vis=track_length_vis)
 
         self.start_frame_idx = frame_idx
@@ -21,7 +28,9 @@ class Track(BaseTrack):
         r: Tensor = w / h
 
         self.kf = KalmanFilter(self.device)
-        self._mean, self._covariance = self.kf.initiate(torch.tensor([cx, cy, s, r], device=self.device))
+        self._mean, self._covariance = self.kf.initiate(
+            torch.tensor([cx, cy, s, r], device=self.device)
+        )
 
         self.feature = feature
         self.hits = 1

@@ -19,13 +19,7 @@ def main(cfg: DictConfig):
     detection_model: YOLO | None = instantiate(cfg.detection_model)
     feature_extractor: Callable = instantiate(cfg.feature_extractor, device=str(accelerator.device))
 
-    tester = Tester(
-        dataloader,
-        accelerator,
-        detection_model,
-        feature_extractor,
-        cfg
-    )
+    tester = Tester(dataloader, accelerator, detection_model, feature_extractor, cfg)
     tester.test()
 
 

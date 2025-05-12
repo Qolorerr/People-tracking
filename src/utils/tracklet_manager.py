@@ -11,12 +11,14 @@ from src.base import BaseTrackManager
 
 
 class TrackManager(BaseTrackManager):
-    def __init__(self,
-                 tracklet_expiration: int = 25,
-                 motion_weight: float = 0.5,
-                 appearance_weight: float = 0.5,
-                 match_threshold: float = 0.7,
-                 device='cuda'):
+    def __init__(
+        self,
+        tracklet_expiration: int = 25,
+        motion_weight: float = 0.5,
+        appearance_weight: float = 0.5,
+        match_threshold: float = 0.7,
+        device="cuda",
+    ):
         super().__init__(tracklet_expiration=tracklet_expiration, device=device)
 
         self.tracks = cast(list[Track], self.tracks)
@@ -50,19 +52,23 @@ class TrackManager(BaseTrackManager):
         active_tracks = []
         for track in self.tracks:
             if track.time_since_update == 0:
-                active_tracks.append({
-                    'track_id': track.track_id,
-                    'bbox': track.get_state(),
-                    'feature': track.feature,
-                    'hits': track.hits,
-                    'age': track.age,
-                    'history': track.get_frames_to_vis(frame_idx)
-                })
+                active_tracks.append(
+                    {
+                        "track_id": track.track_id,
+                        "bbox": track.get_state(),
+                        "feature": track.feature,
+                        "hits": track.hits,
+                        "age": track.age,
+                        "history": track.get_frames_to_vis(frame_idx),
+                    }
+                )
 
         return active_tracks
 
     # returns list of matches and list of unmatched detections
-    def _find_matches(self, bboxes: Tensor, features: Tensor) -> tuple[list[tuple[int, int]], list[int]]:
+    def _find_matches(
+        self, bboxes: Tensor, features: Tensor
+    ) -> tuple[list[tuple[int, int]], list[int]]:
         if len(self.tracks) == 0 or len(bboxes) == 0:
             matches: list[tuple[int, int]] = []
             unmatched_detections: list[int] = list(range(len(bboxes)))
@@ -79,7 +85,9 @@ class TrackManager(BaseTrackManager):
             appearance_sim: Tensor = torch.mm(track_features_norm, det_features_norm.t())
             appearance_cost: Tensor = 1 - appearance_sim
 
-            cost_matrix: Tensor = self.motion_weight * motion_cost + self.appearance_weight * appearance_cost
+            cost_matrix: Tensor = (
+                self.motion_weight * motion_cost + self.appearance_weight * appearance_cost
+            )
 
             # Hungarian algorithm
             cost_matrix_np = cost_matrix.cpu().detach().numpy()
@@ -102,13 +110,13 @@ class TrackManager(BaseTrackManager):
         return matches, unmatched_detections
 
     @staticmethod
-    def _compute_association(pred_tracks: list[dict[str, Any]],
-                             true_bboxes: Tensor,
-                             true_labels: Tensor) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+    def _compute_association(
+        pred_tracks: list[dict[str, Any]], true_bboxes: Tensor, true_labels: Tensor
+    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
         if len(pred_tracks) == 0 or len(true_bboxes) == 0:
             return [], [], []
 
-        pred_bboxes = torch.stack([t['bbox'] for t in pred_tracks])
+        pred_bboxes = torch.stack([t["bbox"] for t in pred_tracks])
 
         iou_matrix = compute_iou_batch(pred_bboxes, true_bboxes)
 
@@ -121,9 +129,9 @@ class TrackManager(BaseTrackManager):
         unmatched_true = []
         for r, c in zip(row_ind, col_ind):
             if iou_matrix[r, c] > 0.5:  # standard VOC threshold
-                matches.append((pred_tracks[r]['track_id'], true_labels[c].item()))
+                matches.append((pred_tracks[r]["track_id"], true_labels[c].item()))
             else:
-                unmatched_pred.append(pred_tracks[r]['track_id'])
+                unmatched_pred.append(pred_tracks[r]["track_id"])
                 unmatched_true.append(true_labels[c].item())
 
         return matches, unmatched_pred, unmatched_true

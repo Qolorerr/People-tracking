@@ -19,20 +19,29 @@ from tqdm import tqdm
 from ultralytics import YOLO
 
 from src.base import BaseTrackManager, BaseDataLoader
-from src.utils import TrackVisualizer, MetricsMeter, metrics, TrackManager, TrackValidator, CropBboxesOutOfFramesMixin, \
-    LoadAndSaveParamsMixin, GlobalTrackManager
+from src.utils import (
+    TrackVisualizer,
+    MetricsMeter,
+    metrics,
+    TrackManager,
+    TrackValidator,
+    CropBboxesOutOfFramesMixin,
+    LoadAndSaveParamsMixin,
+    GlobalTrackManager,
+)
 
 
 class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
-    def __init__(self,
-                 train_dataloader: DataLoader,
-                 val_dataloader: BaseDataLoader,
-                 accelerator: Accelerator,
-                 detection_model: YOLO | None,
-                 feature_extractor_model: nn.Module,
-                 config: DictConfig,
-                 resume: str,
-                 ):
+    def __init__(
+        self,
+        train_dataloader: DataLoader,
+        val_dataloader: BaseDataLoader,
+        accelerator: Accelerator,
+        detection_model: YOLO | None,
+        feature_extractor_model: nn.Module,
+        config: DictConfig,
+        resume: str,
+    ):
         self.train_dataloader: DataLoader = train_dataloader
         self.val_dataloader: BaseDataLoader = val_dataloader
         self.accelerator: Accelerator = accelerator
@@ -41,7 +50,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.feature_extractor_model: nn.Module = feature_extractor_model
         self.config: DictConfig = config
 
-        self.tracklet_manager: BaseTrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.tracklet_manager: BaseTrackManager = instantiate(
+            config.tracklet_master, device=self.device
+        )
         self.is_multicam: bool = False
         if isinstance(self.tracklet_manager, GlobalTrackManager):
             for camera_id in self.val_dataloader.camera_ids:
@@ -52,8 +63,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.tracklet_validator = TrackValidator()
 
         self.detection_model, self.feature_extractor_model = self.accelerator.prepare(
-            self.detection_model,
-            self.feature_extractor_model
+            self.detection_model, self.feature_extractor_model
         )
         self.detection_model = cast(YOLO, self.detection_model)
 
@@ -67,7 +77,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.tuner_params = cfg_trainer.get("tuner_params", {})
 
         # LOSS
-        self.loss: nn.Module = instantiate(config.loss, num_classes=1024, use_gpu=self.device == "cuda")
+        self.loss: nn.Module = instantiate(
+            config.loss, num_classes=1024, use_gpu=self.device == "cuda"
+        )
 
         # OPTIMIZER
         self.feature_extractor_model.train()
@@ -94,9 +106,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
-        writer_dir = str(
-            os.path.join(cfg_trainer["log_dir"], self.config["name"], start_time)
-        )
+        writer_dir = str(os.path.join(cfg_trainer["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
             "crop_size",
@@ -109,9 +119,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self.writer.add_text(f"info/{info}", str(self.config[info]))
         self.logger = logging.getLogger(self.__class__.__name__)
         self.metric_store = MetricsMeter(writer=self.writer)
-        self.checkpoint_dir = os.path.join(
-            cfg_trainer["save_dir"], self.config["name"], start_time
-        )
+        self.checkpoint_dir = os.path.join(cfg_trainer["save_dir"], self.config["name"], start_time)
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
 
@@ -120,14 +128,16 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.log_step = int(self.log_per_iter / self.train_dataloader.batch_size) + 1
 
         self.confidence_threshold = self.config["confidence_threshold"]
-        self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
+        self.person_reshape_h, self.person_reshape_w = (
+            self.config["person_reshape_h"],
+            self.config["person_reshape_w"],
+        )
 
         if resume:
             self._resume_checkpoint(resume)
 
         self.train_dataloader, self.val_dataloader = self.accelerator.prepare(
-            self.train_dataloader,
-            self.val_dataloader
+            self.train_dataloader, self.val_dataloader
         )
 
     def train(self) -> None:
@@ -146,7 +156,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                     after_value = before_value
                     if param_name in results:
                         after_value = results[param_name]
-                    self.logger.info(f"{str(param_name):25s}: {before_value:.3f} -> {after_value:.3f}")
+                    self.logger.info(
+                        f"{str(param_name):25s}: {before_value:.3f} -> {after_value:.3f}"
+                    )
 
             if self.do_validation and epoch % self.val_per_epochs == 0:
                 with torch.no_grad():
@@ -169,7 +181,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                 self._save_checkpoint(epoch, save_best=False)
 
     def _train_epoch(self, epoch: int) -> dict[str, float]:
-        self.set_model_mode('train')
+        self.set_model_mode("train")
 
         end_time = time.time()
         self.metric_store.reset()
@@ -199,7 +211,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         if not isinstance(self.tracklet_manager, TrackManager):
             return {}
 
-        self.set_model_mode('eval')
+        self.set_model_mode("eval")
         self.metric_store.reset()
         self._calc_wrt_step(0, len(self.val_dataloader), 0)
 
@@ -213,24 +225,32 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self.metric_store.update(best_params)
             self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
-        confidence_thresholds = torch.clamp(torch.linspace(
-            self.confidence_threshold - self.tuner_params.params.confidence_threshold.radius,
-            self.confidence_threshold + self.tuner_params.params.confidence_threshold.radius,
-            self.tuner_params.params.confidence_threshold.steps),
+        confidence_thresholds = torch.clamp(
+            torch.linspace(
+                self.confidence_threshold - self.tuner_params.params.confidence_threshold.radius,
+                self.confidence_threshold + self.tuner_params.params.confidence_threshold.radius,
+                self.tuner_params.params.confidence_threshold.steps,
+            ),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
         )
-        motion_weights = torch.clamp(torch.linspace(
-            self.tracklet_manager.motion_weight - self.tuner_params.params.motion_weight.radius,
-            self.tracklet_manager.motion_weight + self.tuner_params.params.motion_weight.radius,
-            self.tuner_params.params.motion_weight.steps),
+        motion_weights = torch.clamp(
+            torch.linspace(
+                self.tracklet_manager.motion_weight - self.tuner_params.params.motion_weight.radius,
+                self.tracklet_manager.motion_weight + self.tuner_params.params.motion_weight.radius,
+                self.tuner_params.params.motion_weight.steps,
+            ),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
         )
-        match_thresholds = torch.clamp(torch.linspace(
-            self.tracklet_manager.match_threshold - self.tuner_params.params.match_threshold.radius,
-            self.tracklet_manager.match_threshold + self.tuner_params.params.match_threshold.radius,
-            self.tuner_params.params.match_threshold.steps),
+        match_thresholds = torch.clamp(
+            torch.linspace(
+                self.tracklet_manager.match_threshold
+                - self.tuner_params.params.match_threshold.radius,
+                self.tracklet_manager.match_threshold
+                + self.tuner_params.params.match_threshold.radius,
+                self.tuner_params.params.match_threshold.steps,
+            ),
             min=self.tuner_params.min_l,
             max=self.tuner_params.max_r,
         )
@@ -238,7 +258,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         param_ranges = [
             confidence_thresholds.tolist(),
             motion_weights.tolist(),
-            match_thresholds.tolist()
+            match_thresholds.tolist(),
         ]
 
         checked: set[tuple] = set()
@@ -252,8 +272,14 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                         continue
                     checked.add(params)
 
-                    self.confidence_threshold, self.tracklet_manager.motion_weight, self.tracklet_manager.match_threshold = params
-                    self.tracklet_manager.appearance_weight = 1 - self.tracklet_manager.motion_weight
+                    (
+                        self.confidence_threshold,
+                        self.tracklet_manager.motion_weight,
+                        self.tracklet_manager.match_threshold,
+                    ) = params
+                    self.tracklet_manager.appearance_weight = (
+                        1 - self.tracklet_manager.motion_weight
+                    )
 
                     self.tracklet_validator.reset()
 
@@ -263,7 +289,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
                     self.tracklet_manager.reset()
 
                     val_metrics = self.tracklet_validator.get_metrics()
-                    score = 0.5 * val_metrics['MOTA'] + 0.5 * val_metrics['IDF1']
+                    score = 0.5 * val_metrics["MOTA"] + 0.5 * val_metrics["IDF1"]
 
                     if score > best_score:
                         best_score = score
@@ -292,7 +318,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         return best_params
 
     def _val_epoch(self, epoch: int) -> dict[str, float]:
-        self.set_model_mode('eval')
+        self.set_model_mode("eval")
 
         end_time = time.time()
         self.metric_store.reset()
@@ -351,11 +377,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
             features = self.feature_extractor_model(batch)
 
-        return {
-            'bboxes': bboxes,
-            'confs': confs,
-            'features': features
-        }
+        return {"bboxes": bboxes, "confs": confs, "features": features}
 
     @staticmethod
     def _filter_degenerate_bboxes(bboxes: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
@@ -364,7 +386,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         filtered_labels = labels[valid_mask]
         return filtered_bboxes, filtered_labels
 
-    def forward_backward(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> dict[str, float]:
+    def forward_backward(
+        self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]
+    ) -> dict[str, float]:
         _, frames, _, labels, _ = data
 
         self.optimizer.zero_grad()
@@ -375,18 +399,18 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.accelerator.backward(loss)
         self.optimizer.step()
 
-        loss_summary = {
-            'loss': loss.item(),
-            'acc': metrics.accuracy(outputs, labels)[0].item()
-        }
+        loss_summary = {"loss": loss.item(), "acc": metrics.accuracy(outputs, labels)[0].item()}
 
         return loss_summary
 
-    def evaluate(self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]) -> list[dict[str, Any]]:
+    def evaluate(
+        self, data: tuple[Tensor, Tensor, Tensor, LongTensor, Tensor]
+    ) -> list[dict[str, Any]]:
         frame_info, frame, true_bboxes, true_labels, is_new_video = data
 
-        true_bboxes, true_labels = self._filter_degenerate_bboxes(bboxes=true_bboxes.squeeze(0),
-                                                                  labels=true_labels.squeeze(0))
+        true_bboxes, true_labels = self._filter_degenerate_bboxes(
+            bboxes=true_bboxes.squeeze(0), labels=true_labels.squeeze(0)
+        )
 
         camera_id, frame_idx = frame_info[0].int()
         camera_id, frame_idx = camera_id.item(), frame_idx.item()
@@ -397,17 +421,17 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         kwargs = {
             "frame_idx": frame_idx,
-            "bboxes": detections['bboxes'],
-            "features": detections['features']
+            "bboxes": detections["bboxes"],
+            "features": detections["features"],
         }
         if self.is_multicam:
             kwargs["camera_id"] = camera_id
 
         active_tracks = self.tracklet_manager.update(**kwargs)
 
-        self.tracklet_validator.validate_frame(pred_tracks=active_tracks,
-                                               true_bboxes=true_bboxes,
-                                               true_labels=true_labels)
+        self.tracklet_validator.validate_frame(
+            pred_tracks=active_tracks, true_bboxes=true_bboxes, true_labels=true_labels
+        )
 
         return active_tracks
 
@@ -436,9 +460,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self.not_improved_count += 1
 
         if self.not_improved_count > self.early_stoping:
-            self.logger.info(
-                f"\nPerformance didn't improve for {self.early_stoping} epochs"
-            )
+            self.logger.info(f"\nPerformance didn't improve for {self.early_stoping} epochs")
             self.logger.warning("Training Stopped")
             return False
         return True
@@ -467,7 +489,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self.lr_scheduler.step()
 
     def get_current_lr(self) -> float:
-        return self.optimizer.param_groups[-1]['lr']
+        return self.optimizer.param_groups[-1]["lr"]
 
     def _save_checkpoint(self, epoch: int, save_best=False) -> None:
         state = {

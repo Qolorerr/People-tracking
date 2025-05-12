@@ -12,14 +12,14 @@ from tqdm import tqdm
 
 class SportsMOTCropper:
     def __init__(
-            self,
-            root: str,
-            split: str,
-            transforms: albumentations.Compose,
-            splits_dir: str,
-            person_reshape_h: int,
-            person_reshape_w: int,
-            dataset_save_dir: str,
+        self,
+        root: str,
+        split: str,
+        transforms: albumentations.Compose,
+        splits_dir: str,
+        person_reshape_h: int,
+        person_reshape_w: int,
+        dataset_save_dir: str,
     ):
         self.root = root
         self.split = split
@@ -29,7 +29,7 @@ class SportsMOTCropper:
         self.dataset_save_dir = dataset_save_dir
 
         split_file = os.path.join(splits_dir, f"{split}.txt")
-        with open(split_file, 'r') as f:
+        with open(split_file, "r") as f:
             self.video_names = [line.strip() for line in f.readlines()]
 
         self.annotations: list[dict[int, list[dict[str, Any]]]] = []
@@ -45,10 +45,10 @@ class SportsMOTCropper:
 
             annotations = {}
             pids = set()
-            gt_path = os.path.join(video_path, 'gt', 'gt.txt')
-            with open(gt_path, 'r') as f:
+            gt_path = os.path.join(video_path, "gt", "gt.txt")
+            with open(gt_path, "r") as f:
                 for line in f:
-                    parts = line.strip().split(', ')
+                    parts = line.strip().split(", ")
                     frame_id = int(parts[0])
                     person_id = int(parts[1])
                     pids.add(person_id)
@@ -56,11 +56,13 @@ class SportsMOTCropper:
 
                     if frame_id not in annotations:
                         annotations[frame_id] = []
-                    annotations[frame_id].append({
-                        'person_id': person_id,
-                        'bbox': [x, y, w, h],
-                        'idx': bbox_idx,
-                    })
+                    annotations[frame_id].append(
+                        {
+                            "person_id": person_id,
+                            "bbox": [x, y, w, h],
+                            "idx": bbox_idx,
+                        }
+                    )
                     bbox_idx += 1
             self._max_num_pids = max(len(pids), self._max_num_pids)
 
@@ -85,22 +87,28 @@ class SportsMOTCropper:
                 boxes, labels, save_ids = [], [], []
 
                 for ann in frame_annotations:
-                    x, y, w, h = ann['bbox']
+                    x, y, w, h = ann["bbox"]
                     boxes.append([x, y, x + w, y + h])
-                    labels.append(self._max_num_pids * video_idx + int(ann['person_id']))
-                    save_ids.append(ann['idx'])
+                    labels.append(self._max_num_pids * video_idx + int(ann["person_id"]))
+                    save_ids.append(ann["idx"])
 
-                boxes = np.array(boxes, dtype=np.int64) if boxes else \
-                    np.zeros((0, 4), dtype=np.int64)
-                labels = np.array(labels, dtype=np.int64) if labels else \
-                    np.zeros((0,), dtype=np.int64)
+                boxes = (
+                    np.array(boxes, dtype=np.int64) if boxes else np.zeros((0, 4), dtype=np.int64)
+                )
+                labels = (
+                    np.array(labels, dtype=np.int64) if labels else np.zeros((0,), dtype=np.int64)
+                )
 
                 try:
                     transformed = self.transforms(image=frame, bboxes=boxes, class_labels=labels)
                 except Exception as e:
                     print("Exception:", (video_idx, frame_id))
                     raise e
-                frame, boxes, labels = transformed["image"], transformed["bboxes"], transformed["class_labels"]
+                frame, boxes, labels = (
+                    transformed["image"],
+                    transformed["bboxes"],
+                    transformed["class_labels"],
+                )
                 frame = frame.float() / 255.0
                 boxes = torch.from_numpy(boxes).to(torch.int64)
                 crops = self.process_frame(frame=frame, bboxes=boxes)
@@ -158,6 +166,6 @@ class SportsMOTCropper:
 
     @staticmethod
     def save_gt(dst: str, save_ids: list[int], labels: list[int]):
-        with open(dst, 'w') as f:
+        with open(dst, "w") as f:
             for save_id, label in zip(save_ids, labels):
                 f.write(f"{save_id}, {label}\n")

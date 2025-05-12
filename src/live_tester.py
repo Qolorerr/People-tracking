@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 import torch
 import threading
-from queue import Queue
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
@@ -21,18 +20,26 @@ from torch import nn, Tensor
 from torch.utils import tensorboard
 from ultralytics import YOLO
 
-from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin, VideoWindow, MetricsMeter, \
-    LoadAndSaveParamsMixin, GlobalTrackManager, CameraWorker
+from src.utils import (
+    TrackManager,
+    TrackVisualizer,
+    CropBboxesOutOfFramesMixin,
+    VideoWindow,
+    MetricsMeter,
+    LoadAndSaveParamsMixin,
+    GlobalTrackManager,
+    CameraWorker,
+)
 
 
 class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
     def __init__(
-            self,
-            accelerator: Accelerator,
-            detection_model: YOLO | None,
-            feature_extractor_model: nn.Module,
-            config: DictConfig,
-            resume: str,
+        self,
+        accelerator: Accelerator,
+        detection_model: YOLO | None,
+        feature_extractor_model: nn.Module,
+        config: DictConfig,
+        resume: str,
     ):
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
@@ -44,8 +51,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.visualizer = TrackVisualizer()
 
         self.detection_model, self.feature_extractor_model = self.accelerator.prepare(
-            self.detection_model,
-            self.feature_extractor_model
+            self.detection_model, self.feature_extractor_model
         )
         self.detection_model = cast(YOLO, self.detection_model)
         self.feature_extractor_model.eval()
@@ -62,9 +68,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
-        writer_dir = str(
-            os.path.join(cfg_tester["log_dir"], self.config["name"], start_time)
-        )
+        writer_dir = str(os.path.join(cfg_tester["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
             "crop_size",
@@ -80,14 +84,17 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.metric_store = MetricsMeter(writer=self.writer)
 
         self.confidence_threshold = self.config["confidence_threshold"]
-        self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
+        self.person_reshape_h, self.person_reshape_w = (
+            self.config["person_reshape_h"],
+            self.config["person_reshape_w"],
+        )
 
         self.running = False
         self.frame_idxes = [1 for _ in range(len(self.rtsp_urls))]
 
         self.app = QApplication(sys.argv)
         self.window = VideoWindow(len(self.rtsp_urls))
-        self.window.closed.connect(lambda: setattr(self, 'running', False))
+        self.window.closed.connect(lambda: setattr(self, "running", False))
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
@@ -133,11 +140,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
                 features = self.feature_extractor_model(batch)
 
-        return {
-            'bboxes': bboxes,
-            'confs': confs,
-            'features': features
-        }
+        return {"bboxes": bboxes, "confs": confs, "features": features}
 
     def _process_frame(self, camera_id: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
         frame_idx = self.frame_idxes[camera_id]
@@ -153,8 +156,8 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         kwargs = {
             "frame_idx": frame_idx,
-            "bboxes": detections['bboxes'],
-            "features": detections['features']
+            "bboxes": detections["bboxes"],
+            "features": detections["features"],
         }
         if self.is_multicam:
             kwargs["camera_id"] = camera_id
@@ -191,13 +194,19 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
     def run(self):
         self.running = True
-        self.window.closed.connect(lambda: setattr(self, 'running', False))
+        self.window.closed.connect(lambda: setattr(self, "running", False))
 
         self.timer.start(30)
 
         for i in range(len(self.rtsp_urls)):
             worker = CameraWorker(i, self.window)
-            thread = threading.Thread(target=self._capture_frames, args=(i, worker,))
+            thread = threading.Thread(
+                target=self._capture_frames,
+                args=(
+                    i,
+                    worker,
+                ),
+            )
             thread.start()
 
             self.window.workers.append(worker)

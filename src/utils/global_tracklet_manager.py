@@ -12,11 +12,13 @@ from src.base import BaseTrackManager
 
 
 class GlobalTrackManager(BaseTrackManager):
-    def __init__(self,
-                 camera_manager_instance: BaseTrackManager,
-                 tracklet_expiration: int = 25,
-                 match_threshold: float = 0.7,
-                 device='cuda'):
+    def __init__(
+        self,
+        camera_manager_instance: BaseTrackManager,
+        tracklet_expiration: int = 25,
+        match_threshold: float = 0.7,
+        device="cuda",
+    ):
         super().__init__(tracklet_expiration=tracklet_expiration, device=device)
 
         self.tracks = cast(list[GlobalTrack], self.tracks)
@@ -30,7 +32,9 @@ class GlobalTrackManager(BaseTrackManager):
 
         self.camera_managers[camera_id] = new_manager
 
-    def update(self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
+    def update(
+        self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor
+    ) -> list[dict[str, Any]]:
         if camera_id not in self.camera_managers:
             return []
 
@@ -39,7 +43,9 @@ class GlobalTrackManager(BaseTrackManager):
 
         self.camera_managers[camera_id].update(frame_idx, bboxes, features)
 
-        local_active_tracks = list(filter(lambda t: t.time_since_update == 0, self.camera_managers[camera_id].tracks))
+        local_active_tracks = list(
+            filter(lambda t: t.time_since_update == 0, self.camera_managers[camera_id].tracks)
+        )
 
         # type check
         for local_active_track in local_active_tracks:
@@ -76,7 +82,9 @@ class GlobalTrackManager(BaseTrackManager):
                 global_features_list.append(track_features)
             global_features: Tensor = torch.cat(global_features_list)
             global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
-            local_features: Tensor = torch.stack([local_active_tracks[idx].feature for idx in unmatched_local_tracks])
+            local_features: Tensor = torch.stack(
+                [local_active_tracks[idx].feature for idx in unmatched_local_tracks]
+            )
             local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
             appearance_sim: Tensor = torch.mm(global_features_norm, local_features_norm.t())
             cost_matrix: Tensor = 1 - appearance_sim
@@ -91,7 +99,12 @@ class GlobalTrackManager(BaseTrackManager):
                 matches = []
                 for r, c in zip(row_ind, col_ind):
                     if cost_matrix[r, c] <= self.match_threshold:
-                        matches.append((temp_unmatched_global_tracks[r.item()], unmatched_local_tracks[c.item()]))
+                        matches.append(
+                            (
+                                temp_unmatched_global_tracks[r.item()],
+                                unmatched_local_tracks[c.item()],
+                            )
+                        )
 
             except Exception as e:
                 print("Got exception:", e)
@@ -118,16 +131,21 @@ class GlobalTrackManager(BaseTrackManager):
 
         active_tracks = []
         for track in self.tracks:
-            if camera_id in track.checked_cameras and track.local_track_map[camera_id].time_since_update == 0:
+            if (
+                camera_id in track.checked_cameras
+                and track.local_track_map[camera_id].time_since_update == 0
+            ):
                 local_track = track.local_track_map[camera_id]
-                active_tracks.append({
-                    'track_id': track.track_id,
-                    'bbox': local_track.get_state(),
-                    'feature': local_track.feature,
-                    'hits': track.hits,
-                    'age': local_track.age,
-                    'history': track.get_frames_to_vis(camera_id, frame_idx)
-                })
+                active_tracks.append(
+                    {
+                        "track_id": track.track_id,
+                        "bbox": local_track.get_state(),
+                        "feature": local_track.feature,
+                        "hits": track.hits,
+                        "age": local_track.age,
+                        "history": track.get_frames_to_vis(camera_id, frame_idx),
+                    }
+                )
 
         return active_tracks
 

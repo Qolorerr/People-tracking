@@ -20,34 +20,43 @@ class KalmanFilter:
         mean_vel = torch.zeros_like(mean_pos)
         mean = torch.cat([mean_pos, mean_vel])
 
-        std = torch.tensor([
-            2 * self._std_weight_position * measurement[3],
-            2 * self._std_weight_position * measurement[3],
-            1e-2,
-            2 * self._std_weight_position * measurement[3],
-            10 * self._std_weight_velocity * measurement[3],
-            10 * self._std_weight_velocity * measurement[3],
-            1e-5,
-            10 * self._std_weight_velocity * measurement[3]
-        ], device=self.device)
+        std = torch.tensor(
+            [
+                2 * self._std_weight_position * measurement[3],
+                2 * self._std_weight_position * measurement[3],
+                1e-2,
+                2 * self._std_weight_position * measurement[3],
+                10 * self._std_weight_velocity * measurement[3],
+                10 * self._std_weight_velocity * measurement[3],
+                1e-5,
+                10 * self._std_weight_velocity * measurement[3],
+            ],
+            device=self.device,
+        )
 
-        covariance = torch.diag(std ** 2)
+        covariance = torch.diag(std**2)
         return mean, covariance
 
     def predict(self, mean: Tensor, covariance: Tensor) -> tuple[Tensor, Tensor]:
-        std_pos = torch.tensor([
-            self._std_weight_position * mean[3],
-            self._std_weight_position * mean[3],
-            1e-2,
-            self._std_weight_position * mean[3]
-        ], device=self.device)
+        std_pos = torch.tensor(
+            [
+                self._std_weight_position * mean[3],
+                self._std_weight_position * mean[3],
+                1e-2,
+                self._std_weight_position * mean[3],
+            ],
+            device=self.device,
+        )
 
-        std_vel = torch.tensor([
-            self._std_weight_velocity * mean[3],
-            self._std_weight_velocity * mean[3],
-            1e-5,
-            self._std_weight_velocity * mean[3]
-        ], device=self.device)
+        std_vel = torch.tensor(
+            [
+                self._std_weight_velocity * mean[3],
+                self._std_weight_velocity * mean[3],
+                1e-5,
+                self._std_weight_velocity * mean[3],
+            ],
+            device=self.device,
+        )
 
         motion_cov = torch.diag(torch.cat([std_pos, std_vel]) ** 2)
         mean = self._motion_mat @ mean
@@ -55,26 +64,29 @@ class KalmanFilter:
         return mean, covariance
 
     def project(self, mean: Tensor, covariance: Tensor) -> tuple[Tensor, Tensor]:
-        std = torch.tensor([
-            self._std_weight_position * mean[3],
-            self._std_weight_position * mean[3],
-            1e-1,
-            self._std_weight_position * mean[3]
-        ], device=self.device)
+        std = torch.tensor(
+            [
+                self._std_weight_position * mean[3],
+                self._std_weight_position * mean[3],
+                1e-1,
+                self._std_weight_position * mean[3],
+            ],
+            device=self.device,
+        )
 
-        innovation_cov = torch.diag(std ** 2)
+        innovation_cov = torch.diag(std**2)
         mean = self._update_mat @ mean
         covariance = self._update_mat @ covariance @ self._update_mat.T + innovation_cov
         return mean, covariance
 
-    def update(self, mean: Tensor, covariance: Tensor, measurement: Tensor) -> tuple[Tensor, Tensor]:
+    def update(
+        self, mean: Tensor, covariance: Tensor, measurement: Tensor
+    ) -> tuple[Tensor, Tensor]:
         projected_mean, projected_cov = self.project(mean, covariance)
         chol = torch.linalg.cholesky(projected_cov)
 
         # solve Kalman gain using Cholesky decomposition
-        kalman_gain_transposed = torch.cholesky_solve(
-            (covariance @ self._update_mat.T).t(), chol
-        )
+        kalman_gain_transposed = torch.cholesky_solve((covariance @ self._update_mat.T).t(), chol)
         kalman_gain = kalman_gain_transposed.t()
 
         innovation = measurement - projected_mean

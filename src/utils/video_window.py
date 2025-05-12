@@ -4,8 +4,15 @@ from queue import Queue
 import numpy as np
 from PyQt5.QtCore import Qt, QTime, pyqtSignal, QObject
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsTextItem, \
-    QGridLayout
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsPixmapItem,
+    QGraphicsTextItem,
+    QGridLayout,
+)
 from numpy._typing import NDArray
 
 
@@ -14,7 +21,7 @@ class VideoWindow(QWidget):
 
     def __init__(self, num_cameras: int):
         super().__init__()
-        self.setWindowTitle('Live Tracking')
+        self.setWindowTitle("Live Tracking")
 
         self.grid = QGridLayout()
         self.setLayout(self.grid)

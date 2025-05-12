@@ -4,9 +4,7 @@ from .base_track import BaseTrack
 
 
 class BaseTrackManager:
-    def __init__(self,
-                 tracklet_expiration: int = 25,
-                 device='cuda'):
+    def __init__(self, tracklet_expiration: int = 25, device="cuda"):
         self.tracks: list[BaseTrack] = []
         self.next_id = 0
         self.tracklet_expiration = tracklet_expiration
