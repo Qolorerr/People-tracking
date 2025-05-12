@@ -2,13 +2,12 @@ import logging
 import os
 import sys
 from datetime import datetime
-from pprint import pprint
 from typing import cast
+import threading
 
 import cv2
 import numpy as np
 import torch
-import threading
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QApplication
@@ -39,7 +38,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         detection_model: YOLO | None,
         feature_extractor_model: nn.Module,
         config: DictConfig,
-        resume: str,
+        resume: str | None = None,
     ):
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
@@ -57,14 +56,14 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.feature_extractor_model.eval()
 
         cfg_tester = self.config["live_tester"]
-        self.rtsp_urls = cfg_tester.rtsp_urls
-        self.transforms = instantiate(cfg_tester.transforms)
+        self._rtsp_urls = cfg_tester.rtsp_urls
+        self._transforms = instantiate(cfg_tester.transforms)
 
-        self.is_multicam: bool = False
+        self._is_multicam: bool = False
         if isinstance(self.tracklet_master, GlobalTrackManager):
-            for camera_id in range(len(self.rtsp_urls)):
+            for camera_id in range(len(self._rtsp_urls)):
                 self.tracklet_master.add_camera(camera_id)
-            self.is_multicam = True
+            self._is_multicam = True
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
@@ -90,10 +89,10 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         )
 
         self.running = False
-        self.frame_idxes = [1 for _ in range(len(self.rtsp_urls))]
+        self.frame_idxes = [1 for _ in range(len(self._rtsp_urls))]
 
         self.app = QApplication(sys.argv)
-        self.window = VideoWindow(len(self.rtsp_urls))
+        self.window = VideoWindow(len(self._rtsp_urls))
         self.window.closed.connect(lambda: setattr(self, "running", False))
 
         self.timer = QTimer()
@@ -103,12 +102,12 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self._resume_checkpoint(resume)
 
     def _capture_frames(self, camera_id: int, worker: CameraWorker):
-        cap = cv2.VideoCapture(self.rtsp_urls[camera_id])
+        cap = cv2.VideoCapture(self._rtsp_urls[camera_id])
         while self.running:
             ret, frame = cap.read()
             if not ret:
                 print("Connection lost, attempting reconnect...")
-                cap = cv2.VideoCapture(self.rtsp_urls[camera_id])
+                cap = cv2.VideoCapture(self._rtsp_urls[camera_id])
                 continue
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -146,7 +145,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         frame_idx = self.frame_idxes[camera_id]
 
         try:
-            transformed = self.transforms(image=frame)
+            transformed = self._transforms(image=frame)
         except Exception as e:
             print("Exception:", frame_idx, datetime.now())
             raise e
@@ -159,7 +158,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             "bboxes": detections["bboxes"],
             "features": detections["features"],
         }
-        if self.is_multicam:
+        if self._is_multicam:
             kwargs["camera_id"] = camera_id
 
         active_tracks = self.tracklet_master.update(**kwargs)
@@ -198,7 +197,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         self.timer.start(30)
 
-        for i in range(len(self.rtsp_urls)):
+        for i in range(len(self._rtsp_urls)):
             worker = CameraWorker(i, self.window)
             thread = threading.Thread(
                 target=self._capture_frames,
@@ -217,7 +216,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.app.exec()
 
     def _resume_checkpoint(self, resume_path: str) -> None:
-        self.logger.info(f"Loading checkpoint : {resume_path}")
+        self.logger.info("Loading checkpoint : %s", resume_path)
         checkpoint = torch.load(resume_path)
 
         if checkpoint["arch"] != str(type(self.feature_extractor_model).__name__):

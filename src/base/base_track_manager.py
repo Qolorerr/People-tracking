@@ -21,4 +21,4 @@ class BaseTrackManager:
         self.next_id = 0
 
     def get_metrics(self) -> dict[str, float]:
-        return dict()
+        return {}

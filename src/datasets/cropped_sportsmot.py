@@ -48,7 +48,7 @@ class CroppedSportsMOTDataset(BaseDataset):
                 }
             )
 
-            for frame_id in annotations.keys():
+            for frame_id in annotations:
                 self.samples.append((video_idx, frame_id))
 
     def __getitem__(self, idx) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
