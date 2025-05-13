@@ -89,23 +89,7 @@ class GlobalTrackManager(BaseTrackManager):
 
         self._clean()
 
-        active_tracks = []
-        for track in self.tracks:
-            if (
-                camera_id in track.checked_cameras
-                and track.local_track_map[camera_id].time_since_update == 0
-            ):
-                local_track = track.local_track_map[camera_id]
-                active_tracks.append(
-                    {
-                        "track_id": track.track_id,
-                        "bbox": local_track.get_state(),
-                        "feature": local_track.feature,
-                        "hits": track.hits,
-                        "age": local_track.age,
-                        "history": track.get_frames_to_vis(camera_id, frame_idx),
-                    }
-                )
+        active_tracks = self.get_active_tracks_info(camera_id, frame_idx)
 
         return active_tracks
 
@@ -178,3 +162,26 @@ class GlobalTrackManager(BaseTrackManager):
         super().reset()
         for manager in self.camera_managers.values():
             manager.reset()
+
+    def get_active_tracks_info(
+        self, camera_id: int, frame_idx: int, *args, **kwargs
+    ) -> list[dict[str, Any]]:
+        active_tracks = []
+        for track in self.tracks:
+            if (
+                camera_id in track.checked_cameras
+                and track.local_track_map[camera_id].time_since_update == 0
+            ):
+                local_track = track.local_track_map[camera_id]
+                active_tracks.append(
+                    {
+                        "track_id": track.track_id,
+                        "bbox": local_track.get_state(),
+                        "feature": local_track.feature,
+                        "hits": track.hits,
+                        "age": local_track.age,
+                        "history": track.get_frames_to_vis(camera_id, frame_idx),
+                    }
+                )
+
+        return active_tracks

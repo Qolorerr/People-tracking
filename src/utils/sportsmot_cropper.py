@@ -9,6 +9,8 @@ from torch import Tensor
 import torchvision.transforms.functional as F
 from tqdm import tqdm
 
+from src.datasets.sportsmot import read_annotations
+
 
 class SportsMOTCropper:
     def __init__(
@@ -41,30 +43,8 @@ class SportsMOTCropper:
         for video_name in self.video_names:
             video_path = os.path.join(self.root, self.split, video_name)
 
-            bbox_idx = 1
-
-            annotations = {}
-            pids = set()
-            gt_path = os.path.join(video_path, "gt", "gt.txt")
-            with open(gt_path, "r") as f:
-                for line in f:
-                    parts = line.strip().split(", ")
-                    frame_id = int(parts[0])
-                    person_id = int(parts[1])
-                    pids.add(person_id)
-                    x, y, w, h = map(int, parts[2:6])
-
-                    if frame_id not in annotations:
-                        annotations[frame_id] = []
-                    annotations[frame_id].append(
-                        {
-                            "person_id": person_id,
-                            "bbox": [x, y, w, h],
-                            "idx": bbox_idx,
-                        }
-                    )
-                    bbox_idx += 1
-            self._max_num_pids = max(len(pids), self._max_num_pids)
+            annotations, num_pids = read_annotations(video_path)
+            self._max_num_pids = max(num_pids, self._max_num_pids)
 
             self.annotations.append(annotations)
 

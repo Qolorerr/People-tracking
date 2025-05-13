@@ -22,3 +22,6 @@ class BaseTrackManager:
 
     def get_metrics(self) -> dict[str, float]:
         return {}
+
+    def get_active_tracks_info(self, *args, **kwargs) -> list[dict[str, Any]]:
+        raise NotImplementedError

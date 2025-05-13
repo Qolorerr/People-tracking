@@ -59,19 +59,7 @@ class AdaptiveTrackManager(TrackManager):
         if self.adapt_per_step and frame_idx % self.adapt_per_step == 0:
             self._adapt_self_params()
 
-        active_tracks = []
-        for track in self.tracks:
-            if track.time_since_update == 0:
-                active_tracks.append(
-                    {
-                        "track_id": track.track_id,
-                        "bbox": track.get_state(),
-                        "feature": track.feature,
-                        "hits": track.hits,
-                        "age": track.age,
-                        "history": track.get_frames_to_vis(frame_idx),
-                    }
-                )
+        active_tracks = self.get_active_tracks_info(frame_idx)
 
         return active_tracks
 

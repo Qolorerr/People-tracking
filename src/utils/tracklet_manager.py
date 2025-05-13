@@ -51,19 +51,7 @@ class TrackManager(BaseTrackManager):
 
         self._clean()
 
-        active_tracks = []
-        for track in self.tracks:
-            if track.time_since_update == 0:
-                active_tracks.append(
-                    {
-                        "track_id": track.track_id,
-                        "bbox": track.get_state(),
-                        "feature": track.feature,
-                        "hits": track.hits,
-                        "age": track.age,
-                        "history": track.get_frames_to_vis(frame_idx),
-                    }
-                )
+        active_tracks = self.get_active_tracks_info(frame_idx)
 
         return active_tracks
 
@@ -137,3 +125,20 @@ class TrackManager(BaseTrackManager):
                 unmatched_true.append(true_labels[c].item())
 
         return matches, unmatched_pred, unmatched_true
+
+    def get_active_tracks_info(self, frame_idx: int, *args, **kwargs) -> list[dict[str, Any]]:
+        active_tracks = []
+        for track in self.tracks:
+            if track.time_since_update == 0:
+                active_tracks.append(
+                    {
+                        "track_id": track.track_id,
+                        "bbox": track.get_state(),
+                        "feature": track.feature,
+                        "hits": track.hits,
+                        "age": track.age,
+                        "history": track.get_frames_to_vis(frame_idx),
+                    }
+                )
+
+        return active_tracks

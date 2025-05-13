@@ -46,25 +46,8 @@ class SportsMOTDataset(BaseDataset):
 
             annotations = {}
             if not test:
-                pids = set()
-                gt_path = os.path.join(video_path, "gt", "gt.txt")
-                with open(gt_path, "r") as f:
-                    for line in f:
-                        parts = line.strip().split(", ")
-                        frame_id = int(parts[0])
-                        person_id = int(parts[1])
-                        pids.add(person_id)
-                        x, y, w, h = map(int, parts[2:6])
-
-                        if frame_id not in annotations:
-                            annotations[frame_id] = []
-                        annotations[frame_id].append(
-                            {
-                                "person_id": person_id,
-                                "bbox": [x, y, w, h],
-                            }
-                        )
-                self._max_num_pids = max(len(pids), self._max_num_pids)
+                annotations, num_pids = read_annotations(video_path)
+                self._max_num_pids = max(num_pids, self._max_num_pids)
 
             self.video_info.append(
                 {
@@ -130,3 +113,29 @@ class SportsMOTDataset(BaseDataset):
         labels = torch.tensor(labels, dtype=torch.long)
 
         return frame_id_tensor, frame, boxes, labels, is_new_video
+
+
+def read_annotations(video_path: str) -> tuple[dict[int, list[dict[str, Any]]], int]:
+    bbox_idx = 1
+    annotations = {}
+    pids = set()
+    gt_path = os.path.join(video_path, "gt", "gt.txt")
+    with open(gt_path, "r") as f:
+        for line in f:
+            parts = line.strip().split(", ")
+            frame_id = int(parts[0])
+            person_id = int(parts[1])
+            pids.add(person_id)
+            x, y, w, h = map(int, parts[2:6])
+
+            if frame_id not in annotations:
+                annotations[frame_id] = []
+            annotations[frame_id].append(
+                {
+                    "person_id": person_id,
+                    "bbox": [x, y, w, h],
+                    "idx": bbox_idx,
+                }
+            )
+            bbox_idx += 1
+    return annotations, len(pids)
