@@ -6,7 +6,7 @@ from torch import Tensor
 import torch.nn.functional as F
 
 from src.base import BaseTrackManager
-from .tracklet import Track
+from .track import Track
 from .metrics import compute_iou_batch
 
 

@@ -4,9 +4,9 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from .tracklet import Track
+from .track import Track
 from .metrics import AdaptiveMetrics
-from .tracklet_manager import TrackManager
+from .track_manager import TrackManager
 
 
 class AdaptiveTrackManager(TrackManager):
@@ -17,7 +17,7 @@ class AdaptiveTrackManager(TrackManager):
         self.adapt_params = adapt_params
         self.adapt_per_step = adapt_per_step
 
-    def update(self, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
+    def update(self, frame_idx: int, bboxes: Tensor, features: Tensor, *args, **kwargs) -> list[dict[str, Any]]:
         if not isinstance(bboxes, Tensor):
             bboxes = torch.tensor(bboxes)
         if not isinstance(features, Tensor):

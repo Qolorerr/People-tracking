@@ -7,8 +7,8 @@ from torch import Tensor
 import torch.nn.functional as F
 
 from src.base import BaseTrackManager
-from .tracklet import Track
-from .global_tracklet import GlobalTrack
+from .track import Track
+from .global_track import GlobalTrack
 
 
 class GlobalTrackManager(BaseTrackManager):
