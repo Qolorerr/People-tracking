@@ -16,7 +16,7 @@ line_length = 100
 
 # pylint
 [tool.pylint.MASTER]
-extension-pkg-whitelist = ["numpy"]
+extension-pkg-whitelist = ["numpy", "cv2", "PyQt5"]
 disable = [
     "C0114",  # missing-module-docstring
     "C0115",  # missing-class-docstring
