@@ -24,9 +24,7 @@ class BaseDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(
-        self, index: int
-    ) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
+    def __getitem__(self, index: int) -> (Tensor, Tensor, Tensor, LongTensor, Tensor):
         raise NotImplementedError
 
     def __repr__(self) -> str:

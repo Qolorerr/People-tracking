@@ -6,7 +6,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from ultralytics import YOLO
 
-from src import Tester
+from scripts import Tester
 from src.base import BaseDataLoader
 
 
@@ -19,13 +19,7 @@ def main(cfg: DictConfig):
     detection_model: YOLO | None = instantiate(cfg.detection_model)
     feature_extractor: Callable = instantiate(cfg.feature_extractor, device=str(accelerator.device))
 
-    tester = Tester(
-        dataloader,
-        accelerator,
-        detection_model,
-        feature_extractor,
-        cfg
-    )
+    tester = Tester(dataloader, accelerator, detection_model, feature_extractor, cfg)
     tester.test()
 
 

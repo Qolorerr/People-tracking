@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta
-from pprint import pprint
 from typing import Callable, Any
 
 import torch
@@ -13,16 +12,23 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
-from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin
+from src.utils import (
+    TrackManager,
+    TrackVisualizer,
+    CropBboxesOutOfFramesMixin,
+    VisualizeAndWriteFrameMixin,
+)
 
 
-class Tester(CropBboxesOutOfFramesMixin):
-    def __init__(self,
-                 dataloader: DataLoader,
-                 accelerator: Accelerator,
-                 detection_model: YOLO | None,
-                 feature_extractor: Callable,
-                 config: DictConfig):
+class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin):
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        accelerator: Accelerator,
+        detection_model: YOLO | None,
+        feature_extractor: Callable,
+        config: DictConfig,
+    ):
         self.dataloader: DataLoader = dataloader
         self.accelerator: Accelerator = accelerator
         self.device = self.accelerator.device
@@ -33,16 +39,15 @@ class Tester(CropBboxesOutOfFramesMixin):
         self.tracklet_master: TrackManager = instantiate(config.tracklet_master, device=self.device)
         self.visualizer = TrackVisualizer()
 
-        self.detection_model, self.feature_extractor = self.accelerator.prepare(self.detection_model,
-                                                                                self.feature_extractor)
+        self.detection_model, self.feature_extractor = self.accelerator.prepare(
+            self.detection_model, self.feature_extractor
+        )
 
         cfg_tester = self.config["tester"]
 
         # CHECKPOINTS & TENSORBOARD
         start_time = datetime.now().strftime("%m-%d_%H-%M")
-        writer_dir = str(
-            os.path.join(cfg_tester["log_dir"], self.config["name"], start_time)
-        )
+        writer_dir = str(os.path.join(cfg_tester["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
             "crop_size",
@@ -57,7 +62,10 @@ class Tester(CropBboxesOutOfFramesMixin):
         self.log_step: int = cfg_tester.get("log_per_iter", 1)
 
         self.confidence_threshold = self.config["confidence_threshold"]
-        self.person_reshape_h, self.person_reshape_w = self.config["person_reshape_h"], self.config["person_reshape_w"]
+        self.person_reshape_h, self.person_reshape_w = (
+            self.config["person_reshape_h"],
+            self.config["person_reshape_w"],
+        )
 
         self.dataloader = self.accelerator.prepare(self.dataloader)
 
@@ -82,11 +90,7 @@ class Tester(CropBboxesOutOfFramesMixin):
             with torch.no_grad():
                 features = self.feature_extractor(batch)
 
-        return {
-            'bboxes': bboxes,
-            'confs': confs,
-            'features': features
-        }
+        return {"bboxes": bboxes, "confs": confs, "features": features}
 
     def test(self) -> None:
         tbar = tqdm(self.dataloader, desc="Test")
@@ -96,31 +100,16 @@ class Tester(CropBboxesOutOfFramesMixin):
 
             start_time = datetime.now()
             detections = self.process_frame(frame)
-            active_tracks = self.tracklet_master.update(frame_idx=self.wrt_step,
-                                                        bboxes=detections['bboxes'],
-                                                        features=detections['features'])
+            active_tracks = self.tracklet_master.update(
+                frame_idx=self.wrt_step,
+                bboxes=detections["bboxes"],
+                features=detections["features"],
+            )
             # pprint(active_tracks)
             processing_time = datetime.now() - start_time
 
             self._log_fps_metric(processing_time)
-            self._visualize_frame(frame, active_tracks)
-
-    def _visualize_frame(self, frames: Tensor, active_tracks: list[dict[str, Any]]) -> None:
-        if self.wrt_step % self.log_step != 0:
-            return
-
-        if len(frames.shape) == 4:
-            img = frames[0]
-        else:
-            img = frames
-
-        img = self.visualizer.draw(img, active_tracks)
-        self.writer.add_image(
-            tag=f"{self.wrt_mode}/tracklet_predictions",
-            img_tensor=img,
-            global_step=self.wrt_step,
-            dataformats="CHW",
-        )
+            self.visualize_and_write_frame(frame, active_tracks)
 
     def _log_fps_metric(self, processing_time: timedelta) -> None:
         fps = int(1 / processing_time.total_seconds())

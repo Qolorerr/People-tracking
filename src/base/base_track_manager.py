@@ -4,9 +4,7 @@ from .base_track import BaseTrack
 
 
 class BaseTrackManager:
-    def __init__(self,
-                 tracklet_expiration: int = 25,
-                 device='cuda'):
+    def __init__(self, tracklet_expiration: int = 25, device="cuda"):
         self.tracks: list[BaseTrack] = []
         self.next_id = 0
         self.tracklet_expiration = tracklet_expiration
@@ -23,4 +21,7 @@ class BaseTrackManager:
         self.next_id = 0
 
     def get_metrics(self) -> dict[str, float]:
-        return dict()
+        return {}
+
+    def get_active_tracks_info(self, *args, **kwargs) -> list[dict[str, Any]]:
+        raise NotImplementedError

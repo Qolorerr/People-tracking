@@ -1,15 +1,15 @@
 from .kalman_filter import KalmanFilter
-from .tracklet import Track
-from .tracklet_manager import TrackManager
-from .adaptive_tracklet_manager import AdaptiveTrackManager
-from .tracklet_validator import TrackValidator
+from .track import Track
+from .track_manager import TrackManager
+from .adaptive_track_manager import AdaptiveTrackManager
+from .track_validator import TrackValidator
 from .visualizer import TrackVisualizer
 
-from .global_tracklet import GlobalTrack
-from .global_tracklet_manager import GlobalTrackManager
+from .global_track import GlobalTrack
+from .global_track_manager import GlobalTrackManager
 
 from .losses import CrossEntropyLoss
 from .metrics import MetricsMeter, AverageMeter
-from .mixins import CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin
+from .mixins import CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWriteFrameMixin
 
 from .video_window import VideoWindow, CameraWorker

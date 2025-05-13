@@ -26,7 +26,7 @@ class CrossEntropyLoss(nn.Module):
     """
 
     def __init__(self, num_classes, eps=0.1, use_gpu=True, label_smooth=True):
-        super(CrossEntropyLoss, self).__init__()
+        super().__init__()
         self.num_classes = num_classes
         self.eps = eps if label_smooth else 0
         self.use_gpu = use_gpu

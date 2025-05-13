@@ -16,8 +16,10 @@ class TrackVisualizer:
     @staticmethod
     def _create_color_map() -> dict[int, tuple[int, int, int]]:
         base_colors = list(mcolors.TABLEAU_COLORS.values())
-        return {i: tuple(int(255 * c) for c in mcolors.to_rgb(color))
-                for i, color in enumerate(base_colors)}
+        return {
+            i: tuple(int(255 * c) for c in mcolors.to_rgb(color))
+            for i, color in enumerate(base_colors)
+        }
 
     @staticmethod
     def _tensor_to_numpy(img_tensor: Tensor) -> NDArray[np.uint8]:
@@ -28,7 +30,9 @@ class TrackVisualizer:
     def _numpy_to_tensor(img_np: NDArray[np.uint8]) -> Tensor:
         return torch.from_numpy(img_np.transpose(2, 0, 1)).float() / 255.0
 
-    def _draw_dashed_line(self, img: NDArray[np.uint8], pt1, pt2, color: tuple[float, float, float], thickness=2):
+    def _draw_dashed_line(
+        self, img: NDArray[np.uint8], pt1, pt2, color: tuple[float, float, float], thickness=2
+    ):
         dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** 0.5
         dash_count = int(dist / sum(self.dash_pattern))
 
@@ -37,17 +41,11 @@ class TrackVisualizer:
             end = start + self.dash_pattern[0]
             alpha = start / dist
             beta = end / dist
-            p1 = (int(pt1[0] + (pt2[0] - pt1[0]) * alpha),
-                  int(pt1[1] + (pt2[1] - pt1[1]) * alpha))
-            p2 = (int(pt1[0] + (pt2[0] - pt1[0]) * beta),
-                  int(pt1[1] + (pt2[1] - pt1[1]) * beta))
+            p1 = (int(pt1[0] + (pt2[0] - pt1[0]) * alpha), int(pt1[1] + (pt2[1] - pt1[1]) * alpha))
+            p2 = (int(pt1[0] + (pt2[0] - pt1[0]) * beta), int(pt1[1] + (pt2[1] - pt1[1]) * beta))
             cv2.line(img, p1, p2, color, thickness)
 
-    def draw(
-            self,
-            image_tensor: Tensor,
-            tracklets: list[dict[str, Any]]
-    ) -> Tensor:
+    def draw(self, image_tensor: Tensor, tracklets: list[dict[str, Any]]) -> Tensor:
         """
         Основная функция отрисовки
         Args:
@@ -62,9 +60,7 @@ class TrackVisualizer:
         return img_tensor
 
     def draw_np(
-            self,
-            img_np: NDArray[np.uint8],
-            tracklets: list[dict[str, Any]]
+        self, img_np: NDArray[np.uint8], tracklets: list[dict[str, Any]]
     ) -> NDArray[np.uint8]:
         """
         Основная функция отрисовки
@@ -77,9 +73,9 @@ class TrackVisualizer:
         img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
 
         for tracklet in tracklets:
-            person_id: int = tracklet['track_id']
-            history: list[tuple[int, int, int]] = tracklet['history']
-            bbox: Tensor = tracklet['bbox']
+            person_id: int = tracklet["track_id"]
+            history: list[tuple[int, int, int]] = tracklet["history"]
+            bbox: Tensor = tracklet["bbox"]
             color: tuple[int, int, int] = self.color_map[person_id % len(self.color_map)]
 
             for i, record in enumerate(history):
@@ -112,9 +108,10 @@ class TrackVisualizer:
             # Draw sign
             label = f"ID: {person_id}"
             (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-            cv2.rectangle(img_np, (x1, y1 - 20), (x1 + w, y1), color, -1)
-            cv2.putText(img_np, label, (x1, y1 - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.rectangle(img_np, (x1, y1 - (h + 10)), (x1 + w, y1), color, -1)
+            cv2.putText(
+                img_np, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1
+            )
 
         img_np = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
         return img_np
