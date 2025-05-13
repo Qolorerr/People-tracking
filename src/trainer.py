@@ -283,7 +283,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
                     self.tracklet_validator.reset()
 
-                    for frame_idx, data in enumerate(self.val_dataloader):
+                    for data in self.val_dataloader:
                         self.evaluate(data)
 
                     self.tracklet_manager.reset()

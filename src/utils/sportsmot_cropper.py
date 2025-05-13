@@ -38,7 +38,7 @@ class SportsMOTCropper:
 
     def _set_samples(self):
         self._max_num_pids = 0
-        for video_idx, video_name in enumerate(self.video_names):
+        for video_name in self.video_names:
             video_path = os.path.join(self.root, self.split, video_name)
 
             bbox_idx = 1

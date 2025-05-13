@@ -34,7 +34,7 @@ class GlobalTrack(BaseTrack):
     def iterate(self, frame_idx: int) -> None:
         self.time_since_update = max(frame_idx - self.last_frame_idx, 0)
 
-    def update(self, camera_id: int, frame_idx: int, local_track: Track) -> None:
+    def update(self, camera_id: int, frame_idx: int, local_track: Track, *args, **kwargs) -> None:
         self.checked_cameras.add(camera_id)
 
         self.local_track_map[camera_id] = local_track

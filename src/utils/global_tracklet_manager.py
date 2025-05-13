@@ -6,9 +6,9 @@ from scipy.optimize import linear_sum_assignment
 from torch import Tensor
 import torch.nn.functional as F
 
+from src.base import BaseTrackManager
 from .tracklet import Track
 from .global_tracklet import GlobalTrack
-from src.base import BaseTrackManager
 
 
 class GlobalTrackManager(BaseTrackManager):
@@ -33,7 +33,7 @@ class GlobalTrackManager(BaseTrackManager):
         self.camera_managers[camera_id] = new_manager
 
     def update(
-        self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor
+        self, camera_id: int, frame_idx: int, bboxes: Tensor, features: Tensor, *args, **kwargs
     ) -> list[dict[str, Any]]:
         if camera_id not in self.camera_managers:
             return []
@@ -57,58 +57,18 @@ class GlobalTrackManager(BaseTrackManager):
         unmatched_local_tracks = list(range(len(local_active_tracks)))
 
         # search if already stored
-        for local_track_idx, local_track in enumerate(local_active_tracks):
-            found_global_track_idx = -1
-            for global_track_idx, global_track in enumerate(self.tracks):
-                if global_track.is_contains_track(camera_id, local_track.track_id):
-                    found_global_track_idx = global_track_idx
-                    break
-
-            if found_global_track_idx != -1:
-                self.tracks[found_global_track_idx].update(camera_id, frame_idx, local_track)
-                unmatched_global_tracks.remove(found_global_track_idx)
-                unmatched_local_tracks.remove(local_track_idx)
-                continue
-
-        if len(unmatched_global_tracks) == 0 or len(unmatched_local_tracks) == 0:
-            matches: list[tuple[int, int]] = []
-        else:
-            # appearance similarity
-            temp_unmatched_global_tracks: list[int] = []
-            global_features_list: list[Tensor] = []
-            for idx in unmatched_global_tracks:
-                track_features = self.tracks[idx].get_features()
-                temp_unmatched_global_tracks.extend([idx] * len(track_features))
-                global_features_list.append(track_features)
-            global_features: Tensor = torch.cat(global_features_list)
-            global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
-            local_features: Tensor = torch.stack(
-                [local_active_tracks[idx].feature for idx in unmatched_local_tracks]
+        local_stored_idx_map = self._search_already_stored_tracks(camera_id, local_active_tracks)
+        for local_track_idx, global_track_idx in local_stored_idx_map.items():
+            self.tracks[global_track_idx].update(
+                camera_id, frame_idx, local_active_tracks[local_track_idx]
             )
-            local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
-            appearance_sim: Tensor = torch.mm(global_features_norm, local_features_norm.t())
-            cost_matrix: Tensor = 1 - appearance_sim
+            unmatched_global_tracks.remove(global_track_idx)
+            unmatched_local_tracks.remove(local_track_idx)
 
-            # Hungarian algorithm
-            cost_matrix_np = cost_matrix.cpu().detach().numpy()
-            try:
-                row_ind, col_ind = linear_sum_assignment(cost_matrix_np)
-                row_ind = torch.from_numpy(row_ind).to(self.device)
-                col_ind = torch.from_numpy(col_ind).to(self.device)
-
-                matches = []
-                for r, c in zip(row_ind, col_ind):
-                    if cost_matrix[r, c] <= self.match_threshold:
-                        matches.append(
-                            (
-                                temp_unmatched_global_tracks[r.item()],
-                                unmatched_local_tracks[c.item()],
-                            )
-                        )
-
-            except Exception as e:
-                print("Got exception:", e)
-                matches: list[tuple[int, int]] = []
+        # find matches based on appearance
+        matches: list[tuple[int, int]] = self._find_matches(
+            local_active_tracks, unmatched_global_tracks, unmatched_local_tracks
+        )
 
         # update matched tracks
         for global_track_idx, local_track_idx in matches:
@@ -148,6 +108,71 @@ class GlobalTrackManager(BaseTrackManager):
                 )
 
         return active_tracks
+
+    def _search_already_stored_tracks(
+        self, camera_id: int, local_active_tracks: list[Track]
+    ) -> dict[int, int]:
+        local_to_global_idx_map = {}
+
+        for local_track_idx, local_track in enumerate(local_active_tracks):
+            found_global_track_idx = -1
+            for global_track_idx, global_track in enumerate(self.tracks):
+                if global_track.is_contains_track(camera_id, local_track.track_id):
+                    found_global_track_idx = global_track_idx
+                    break
+
+            if found_global_track_idx != -1:
+                local_to_global_idx_map[local_track_idx] = found_global_track_idx
+                continue
+
+        return local_to_global_idx_map
+
+    def _find_matches(
+        self,
+        local_active_tracks: list[Track],
+        unmatched_global_tracks: list[int],
+        unmatched_local_tracks: list[int],
+    ) -> list[tuple[int, int]]:
+        if len(unmatched_global_tracks) == 0 or len(unmatched_local_tracks) == 0:
+            matches: list[tuple[int, int]] = []
+        else:
+            # appearance similarity
+            temp_unmatched_global_tracks: list[int] = []
+            global_features_list: list[Tensor] = []
+            for idx in unmatched_global_tracks:
+                track_features = self.tracks[idx].get_features()
+                temp_unmatched_global_tracks.extend([idx] * len(track_features))
+                global_features_list.append(track_features)
+            global_features: Tensor = torch.cat(global_features_list)
+            global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
+            local_features: Tensor = torch.stack(
+                [local_active_tracks[idx].feature for idx in unmatched_local_tracks]
+            )
+            local_features_norm: Tensor = F.normalize(local_features, p=2, dim=1)
+            appearance_sim: Tensor = torch.mm(global_features_norm, local_features_norm.t())
+            cost_matrix: Tensor = 1 - appearance_sim
+
+            # Hungarian algorithm
+            cost_matrix_np = cost_matrix.cpu().detach().numpy()
+            try:
+                row_ind, col_ind = linear_sum_assignment(cost_matrix_np)
+                row_ind = torch.from_numpy(row_ind).to(self.device)
+                col_ind = torch.from_numpy(col_ind).to(self.device)
+
+                matches = []
+                for r, c in zip(row_ind, col_ind):
+                    if cost_matrix[r, c] <= self.match_threshold:
+                        matches.append(
+                            (
+                                temp_unmatched_global_tracks[r.item()],
+                                unmatched_local_tracks[c.item()],
+                            )
+                        )
+
+            except Exception as e:
+                print("Got exception:", e)
+                matches: list[tuple[int, int]] = []
+        return matches
 
     def reset(self):
         super().reset()
