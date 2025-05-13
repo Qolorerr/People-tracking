@@ -236,8 +236,10 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         )
         motion_weights = torch.clamp(
             torch.linspace(
-                self.tracklet_manager.motion_weight - self._tuner_params.params.motion_weight.radius,
-                self.tracklet_manager.motion_weight + self._tuner_params.params.motion_weight.radius,
+                self.tracklet_manager.motion_weight
+                - self._tuner_params.params.motion_weight.radius,
+                self.tracklet_manager.motion_weight
+                + self._tuner_params.params.motion_weight.radius,
                 self._tuner_params.params.motion_weight.steps,
             ),
             min=self._tuner_params.min_l,
@@ -360,24 +362,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         with torch.no_grad():
             detections = self.detection_model.predict(frame, verbose=False)[0]
 
-        bboxes: Tensor = detections.boxes.xyxy
-        confs: Tensor = detections.boxes.conf
-        class_ids: Tensor = detections.boxes.cls
+        data = self.extract_bboxes(frame, detections)
 
-        person_mask = class_ids == 0
-        confidence_mask = confs >= self.confidence_threshold
-        valid_bbox_mask = (bboxes[:, 0] != bboxes[:, 2]) & (bboxes[:, 1] != bboxes[:, 3])
-        mask = person_mask & confidence_mask & valid_bbox_mask
-        bboxes = bboxes[mask]
-        confs = confs[mask]
-
-        features = []
-        if len(bboxes) > 0:
-            batch = self.crop_bboxes(frame, bboxes)
-
-            features = self.feature_extractor_model(batch)
-
-        return {"bboxes": bboxes, "confs": confs, "features": features}
+        return data
 
     @staticmethod
     def _filter_degenerate_bboxes(bboxes: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:

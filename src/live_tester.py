@@ -118,28 +118,13 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
             self.frame_idxes[camera_id] += 1
 
-    def _extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
+    def _detect_and_extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
         with torch.no_grad():
             detections = self.detection_model.predict(frame, verbose=False)[0]
 
-            bboxes: Tensor = detections.boxes.xyxy
-            confs: Tensor = detections.boxes.conf
-            class_ids: Tensor = detections.boxes.cls
+            data = self.extract_bboxes(frame, detections)
 
-            person_mask = class_ids == 0
-            confidence_mask = confs >= self.confidence_threshold
-            valid_bbox_mask = (bboxes[:, 0] != bboxes[:, 2]) & (bboxes[:, 1] != bboxes[:, 3])
-            mask = person_mask & confidence_mask & valid_bbox_mask
-            bboxes = bboxes[mask]
-            confs = confs[mask]
-
-            features = []
-            if len(bboxes) > 0:
-                batch = self.crop_bboxes(frame, bboxes)
-
-                features = self.feature_extractor_model(batch)
-
-        return {"bboxes": bboxes, "confs": confs, "features": features}
+        return data
 
     def _process_frame(self, camera_id: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
         frame_idx = self.frame_idxes[camera_id]
@@ -151,7 +136,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             raise e
         frame_tensor = transformed["image"].float().to(self.device) / 255.0
 
-        detections = self._extract_bboxes(frame_tensor.unsqueeze(0))
+        detections = self._detect_and_extract_bboxes(frame_tensor.unsqueeze(0))
 
         kwargs = {
             "frame_idx": frame_idx,

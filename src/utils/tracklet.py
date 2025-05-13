@@ -1,8 +1,8 @@
 import torch
 from torch import Tensor
 
-from .kalman_filter import KalmanFilter
 from src.base import BaseTrack
+from .kalman_filter import KalmanFilter
 
 
 class Track(BaseTrack):
@@ -42,7 +42,9 @@ class Track(BaseTrack):
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, bbox: Tensor, feature: Tensor, frame_idx: int | None = None) -> None:
+    def update(
+        self, bbox: Tensor, feature: Tensor, frame_idx: int | None = None, *args, **kwargs
+    ) -> None:
         x1, y1, x2, y2 = bbox
         w: Tensor = x2 - x1
         h: Tensor = y2 - y1

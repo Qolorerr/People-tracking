@@ -5,9 +5,9 @@ from scipy.optimize import linear_sum_assignment
 from torch import Tensor
 import torch.nn.functional as F
 
+from src.base import BaseTrackManager
 from .tracklet import Track
 from .metrics import compute_iou_batch
-from src.base import BaseTrackManager
 
 
 class TrackManager(BaseTrackManager):
@@ -26,7 +26,9 @@ class TrackManager(BaseTrackManager):
         self.appearance_weight = appearance_weight
         self.match_threshold = match_threshold
 
-    def update(self, frame_idx: int, bboxes: Tensor, features: Tensor) -> list[dict[str, Any]]:
+    def update(
+        self, frame_idx: int, bboxes: Tensor, features: Tensor, *args, **kwargs
+    ) -> list[dict[str, Any]]:
         if not isinstance(bboxes, Tensor):
             bboxes = torch.tensor(bboxes)
         if not isinstance(features, Tensor):

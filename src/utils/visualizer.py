@@ -108,7 +108,7 @@ class TrackVisualizer:
             # Draw sign
             label = f"ID: {person_id}"
             (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-            cv2.rectangle(img_np, (x1, y1 - 20), (x1 + w, y1), color, -1)
+            cv2.rectangle(img_np, (x1, y1 - (h + 10)), (x1 + w, y1), color, -1)
             cv2.putText(
                 img_np, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1
             )

@@ -3,6 +3,7 @@ from typing import Any
 import torch
 from torch import Tensor
 import torchvision.transforms.functional as F
+from ultralytics.engine.results import Results
 
 
 class CropBboxesOutOfFramesMixin:
@@ -37,6 +38,26 @@ class CropBboxesOutOfFramesMixin:
 
         batch = torch.cat(crops)
         return batch
+
+    def extract_bboxes(self, frame: Tensor, detections: Results) -> dict[str, Tensor]:
+        bboxes: Tensor = detections.boxes.xyxy
+        confs: Tensor = detections.boxes.conf
+        class_ids: Tensor = detections.boxes.cls
+
+        person_mask = class_ids == 0
+        confidence_mask = confs >= self.confidence_threshold
+        valid_bbox_mask = (bboxes[:, 0] != bboxes[:, 2]) & (bboxes[:, 1] != bboxes[:, 3])
+        mask = person_mask & confidence_mask & valid_bbox_mask
+        bboxes = bboxes[mask]
+        confs = confs[mask]
+
+        features = []
+        if len(bboxes) > 0:
+            batch = self.crop_bboxes(frame, bboxes)
+
+            features = self.feature_extractor_model(batch)
+
+        return {"bboxes": bboxes, "confs": confs, "features": features}
 
 
 class LoadAndSaveParamsMixin:
