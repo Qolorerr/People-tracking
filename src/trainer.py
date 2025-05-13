@@ -158,7 +158,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
                     if param_name in results:
                         after_value = results[param_name]
                     self.logger.info(
-                        f"{str(param_name):25s}: {before_value:.3f} -> {after_value:.3f}"
+                        "%-25s: %.3f -> %.3f", str(param_name), before_value, after_value
                     )
 
             if self._do_validation and epoch % self._val_per_epochs == 0:
@@ -171,7 +171,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
                 # LOGGING INFO
                 self.logger.info("\n## Info for epoch %d ## ", epoch)
                 for k, v in results.items():
-                    self.logger.info(f"{str(k):15s}: {v}")
+                    self.logger.info("%-15s: %s", str(k), v)
 
                 ok = self._monitor_ok(log)
                 if not ok:
