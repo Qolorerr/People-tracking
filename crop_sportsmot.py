@@ -5,7 +5,7 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from src.utils.sportsmot_cropper import SportsMOTCropper
+from scripts.sportsmot_cropper import SportsMOTCropper
 
 
 @hydra.main(version_base="1.1", config_path="config", config_name="crop_sportsMOT")

@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 from torch import nn
 from ultralytics import YOLO
 
-from src import LiveTester
+from scripts import LiveTester
 
 
 @hydra.main(version_base="1.1", config_path="config", config_name="config")

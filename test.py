@@ -6,7 +6,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from ultralytics import YOLO
 
-from src import Tester
+from scripts import Tester
 from src.base import BaseDataLoader
 
 

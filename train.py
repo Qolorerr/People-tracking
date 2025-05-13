@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from ultralytics import YOLO
 
-from src import Trainer
+from scripts import Trainer
 from src.base import BaseDataLoader
 
 

@@ -17,7 +17,9 @@ class AdaptiveTrackManager(TrackManager):
         self.adapt_params = adapt_params
         self.adapt_per_step = adapt_per_step
 
-    def update(self, frame_idx: int, bboxes: Tensor, features: Tensor, *args, **kwargs) -> list[dict[str, Any]]:
+    def update(
+        self, frame_idx: int, bboxes: Tensor, features: Tensor, *args, **kwargs
+    ) -> list[dict[str, Any]]:
         if not isinstance(bboxes, Tensor):
             bboxes = torch.tensor(bboxes)
         if not isinstance(features, Tensor):
