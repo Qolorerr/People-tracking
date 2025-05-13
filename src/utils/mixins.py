@@ -74,3 +74,30 @@ class LoadAndSaveParamsMixin:
             "appearance_weight": self.tracklet_master.appearance_weight,
             "match_threshold": self.tracklet_master.match_threshold,
         }
+
+
+class VisualizeAndWriteFrameMixin:
+    def visualize_frame(self, frames: Tensor, active_tracks: list[dict[str, Any]]) -> Tensor:
+        if len(frames.shape) == 4:
+            img = frames[0]
+        else:
+            img = frames
+
+        img = self.visualizer.draw(img, active_tracks)
+
+        return img
+
+    def visualize_and_write_frame(
+        self, frames: Tensor, active_tracks: list[dict[str, Any]]
+    ) -> None:
+        if self.wrt_step % self.log_step != 0:
+            return
+
+        img = self.visualize_frame(frames, active_tracks)
+
+        self.writer.add_image(
+            tag=f"{self.wrt_mode}/tracklet_predictions",
+            img_tensor=img,
+            global_step=self.wrt_step,
+            dataformats="CHW",
+        )

@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from src.base import BaseTrack
-from src.utils import Track
+from .tracklet import Track
 
 
 class GlobalTrack(BaseTrack):

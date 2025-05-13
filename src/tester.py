@@ -12,10 +12,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ultralytics import YOLO
 
-from src.utils import TrackManager, TrackVisualizer, CropBboxesOutOfFramesMixin
+from src.utils import (
+    TrackManager,
+    TrackVisualizer,
+    CropBboxesOutOfFramesMixin,
+    VisualizeAndWriteFrameMixin,
+)
 
 
-class Tester(CropBboxesOutOfFramesMixin):
+class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin):
     def __init__(
         self,
         dataloader: DataLoader,
@@ -104,24 +109,7 @@ class Tester(CropBboxesOutOfFramesMixin):
             processing_time = datetime.now() - start_time
 
             self._log_fps_metric(processing_time)
-            self._visualize_frame(frame, active_tracks)
-
-    def _visualize_frame(self, frames: Tensor, active_tracks: list[dict[str, Any]]) -> None:
-        if self.wrt_step % self.log_step != 0:
-            return
-
-        if len(frames.shape) == 4:
-            img = frames[0]
-        else:
-            img = frames
-
-        img = self.visualizer.draw(img, active_tracks)
-        self.writer.add_image(
-            tag=f"{self.wrt_mode}/tracklet_predictions",
-            img_tensor=img,
-            global_step=self.wrt_step,
-            dataformats="CHW",
-        )
+            self.visualize_and_write_frame(frame, active_tracks)
 
     def _log_fps_metric(self, processing_time: timedelta) -> None:
         fps = int(1 / processing_time.total_seconds())

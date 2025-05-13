@@ -28,10 +28,11 @@ from src.utils import (
     CropBboxesOutOfFramesMixin,
     LoadAndSaveParamsMixin,
     GlobalTrackManager,
+    VisualizeAndWriteFrameMixin,
 )
 
 
-class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
+class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWriteFrameMixin):
     def __init__(
         self,
         train_dataloader: DataLoader,
@@ -337,7 +338,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
             if idx % self.log_per_iter == 0:
                 self.metric_store.print_metrics(tbar, epoch, "VAL")
-                self._visualize_frame(data[1], active_tracks)
+                self.visualize_and_write_frame(data[1], active_tracks)
 
             self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 
@@ -452,23 +453,6 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             self.logger.warning("Training Stopped")
             return False
         return True
-
-    def _visualize_frame(self, frames: Tensor, active_tracks: list[dict[str, Any]]) -> None:
-        if self.wrt_step % self.log_step != 0:
-            return
-
-        if len(frames.shape) == 4:
-            img = frames[0]
-        else:
-            img = frames
-
-        img = self.visualizer.draw(img, active_tracks)
-        self.writer.add_image(
-            tag=f"{self.wrt_mode}/tracklet_predictions",
-            img_tensor=img,
-            global_step=self.wrt_step,
-            dataformats="CHW",
-        )
 
     def update_lr(self, metric: float = 0.0, epoch: int | None = None):
         if isinstance(self.lr_scheduler, ReduceLROnPlateau):
