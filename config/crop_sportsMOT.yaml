@@ -2,11 +2,23 @@ defaults:
    - _self_
    - dataset: sportsMOT
 
-crop_size: 640
+img_h: 720
+img_w: 1280
+pad_img_h: 736
+pad_img_w: 1280
 
 train_transforms:
-  - _target_: albumentations.SmallestMaxSize
-    max_size: ${crop_size}
+  - _target_: albumentations.Resize
+    height: ${img_h}
+    width: ${img_w}
+  - _target_: albumentations.PadIfNeeded
+    min_height: ${pad_img_h}
+    min_width: ${pad_img_w}
+    border_mode: 0
+    value:
+    - 0
+    - 0
+    - 0
   - _target_: albumentations.pytorch.ToTensorV2
 
 cropper:

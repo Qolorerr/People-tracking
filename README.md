@@ -34,10 +34,10 @@ conda activate tracker
 
 # Установка зависимостей
 pip install -r requirements.txt
-python setup.py develop
 
 # Установка PyTorch (под вашу видеокарту)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118# для CUDA 11.8
+python setup.py develop
 
 # Переход в папку проекта
 cd ../people-tracking

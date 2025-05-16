@@ -4,66 +4,42 @@ defaults:
 
 name: "YOLO11n-osnet_x1_0"
 confidence_threshold: 0.594
-crop_size: 640
+img_h: 720
+img_w: 1280
+pad_img_h: 736
+pad_img_w: 1280
 person_reshape_h: 256
 person_reshape_w: 128
 
 train_transforms:
-#  - _target_: albumentations.SmallestMaxSize
-#    max_size: ${crop_size}
-#  - _target_: albumentations.CenterCrop
-#    height: ${crop_size}
-#    width: ${crop_size}
-#  - _target_: albumentations.AdvancedBlur
-#    p: 0.75
-#  - _target_: albumentations.GaussNoise
-#    p: 0.75
-#  - _target_: albumentations.HorizontalFlip
-#    p: 0.5
-#  - _target_: albumentations.CLAHE
-#    p: 0.75
-#  - _target_: albumentations.RandomBrightnessContrast
-#    p: 0.75
-#  - _target_: albumentations.RandomGamma
-#    p: 0.75
-#  - _target_: albumentations.ColorJitter
-#    p: 0.75
-#  - _target_: albumentations.Normalize
-#    mean: ${mean}
-#    std: ${std}
   - _target_: albumentations.pytorch.ToTensorV2
 
 val_transforms:
-  - _target_: albumentations.SmallestMaxSize
-    max_size: ${crop_size}
-  - _target_: albumentations.CenterCrop
-    height: ${crop_size}
-    width: ${crop_size}
-#  - _target_: albumentations.Normalize
-#    mean: ${mean}
-#    std: ${std}
+  - _target_: albumentations.Resize
+    height: ${img_h}
+    width: ${img_w}
+  - _target_: albumentations.PadIfNeeded
+    min_height: ${pad_img_h}
+    min_width: ${pad_img_w}
+    border_mode: 0
+    value:
+    - 0
+    - 0
+    - 0
   - _target_: albumentations.pytorch.ToTensorV2
 
 test_transforms:
-#  - _target_: albumentations.Resize
-#    height: 720
-#    width: 1280
-#  - _target_: albumentations.PadIfNeeded
-#    min_height: 736
-#    min_width: 1280
-#    border_mode: 0
-#    value:
-#    - 0
-#    - 0
-#    - 0
-  - _target_: albumentations.SmallestMaxSize
-    max_size: ${crop_size}
-  - _target_: albumentations.CenterCrop
-    height: ${crop_size}
-    width: ${crop_size}
-#  - _target_: albumentations.Normalize
-#    mean: ${mean}
-#    std: ${std}
+  - _target_: albumentations.Resize
+    height: ${img_h}
+    width: ${img_w}
+  - _target_: albumentations.PadIfNeeded
+    min_height: ${pad_img_h}
+    min_width: ${pad_img_w}
+    border_mode: 0
+    value:
+    - 0
+    - 0
+    - 0
   - _target_: albumentations.pytorch.ToTensorV2
 
 train_loader:
@@ -119,7 +95,6 @@ test_loader:
 accelerator:
   _target_: accelerate.Accelerator
   cpu: False
-#  mixed_precision: fp16
 
 detection_model:
   _target_: ultralytics.YOLO
