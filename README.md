@@ -24,24 +24,33 @@
 ### **1. Подготовка окружения**
 ```bash
 # Установка conda (если не установлен)
+
 # Клонирование репозиториев
 git clone https://github.com/KaiyangZhou/deep-person-reid.git
+git clone https://github.com/Qolorerr/People-tracking.git
+
 cd deep-person-reid/
 
 # Создание виртуального окружения
 conda create --name tracker python=3.10
 conda activate tracker
 
-# Установка зависимостей
+# Установка зависимостей для torchreid
 pip install -r requirements.txt
 
 # Установка PyTorch (под вашу видеокарту)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118# для CUDA 11.8
+
+# Установка torchreid
 python setup.py develop
 
 # Переход в папку проекта
-cd ../people-tracking
+cd ../People-tracking
+
+# Установка зависимостей
 pip install -r requirements.txt
+conda install pyqt~=5.15.10
+
 ```
 
 ### **2. Настройка конфигурации**

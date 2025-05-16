@@ -22,7 +22,7 @@ train_transforms:
   - _target_: albumentations.pytorch.ToTensorV2
 
 cropper:
-  _target_: src.utils.sportsmot_cropper.SportsMOTCropper
+  _target_: scripts.sportsmot_cropper.SportsMOTCropper
   root: ${dataset.data_dir}
   split: train
   transforms:
