@@ -70,7 +70,6 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         writer_dir = str(os.path.join(cfg_tester["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
-            "crop_size",
             "detection_model",
             "feature_extractor_model",
             "live_tester",
@@ -89,7 +88,6 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         )
 
         self.running = False
-        self.frame_idxes = [1 for _ in range(len(self._rtsp_urls))]
 
         self.app = QApplication(sys.argv)
         self.window = VideoWindow(len(self._rtsp_urls))
@@ -103,6 +101,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
     def _capture_frames(self, camera_id: int, worker: CameraWorker):
         cap = cv2.VideoCapture(self._rtsp_urls[camera_id])
+        frame_idx = 1
         while self.running:
             ret, frame = cap.read()
             if not ret:
@@ -114,9 +113,9 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
             with worker.queue_lock:
                 if worker.queue.full():
                     worker.queue.get()
-                worker.queue.put(frame)
+                worker.queue.put((frame_idx, frame))
 
-            self.frame_idxes[camera_id] += 1
+            frame_idx += 1
 
     def _detect_and_extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
         with torch.no_grad():
@@ -126,9 +125,7 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         return data
 
-    def _process_frame(self, camera_id: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
-        frame_idx = self.frame_idxes[camera_id]
-
+    def _process_frame(self, camera_id: int, frame_idx: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
         try:
             transformed = self._transforms(image=frame)
         except Exception as e:
@@ -170,11 +167,11 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         for worker, widget in zip(self.window.workers, self.window.camera_widgets):
             with worker.queue_lock:
                 if not worker.queue.empty():
-                    frame = worker.queue.get()
+                    frame_idx, frame = worker.queue.get()
 
-                    processed_frame = self._process_frame(worker.camera_id, frame)
+                    processed_frame = self._process_frame(worker.camera_id, frame_idx, frame)
 
-                    widget.update_frame(self.frame_idxes[worker.camera_id], processed_frame)
+                    widget.update_frame(frame_idx, processed_frame)
 
     def run(self):
         self.running = True
