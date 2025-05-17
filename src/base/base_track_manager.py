@@ -23,5 +23,8 @@ class BaseTrackManager:
     def get_metrics(self) -> dict[str, float]:
         return {}
 
+    def get_active_tracks(self) -> list[BaseTrack]:
+        return list(filter(lambda t: t.time_since_update == 0, self.tracks))
+
     def get_active_tracks_info(self, *args, **kwargs) -> list[dict[str, Any]]:
         raise NotImplementedError

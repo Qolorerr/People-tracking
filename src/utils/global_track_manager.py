@@ -43,9 +43,7 @@ class GlobalTrackManager(BaseTrackManager):
 
         self.camera_managers[camera_id].update(frame_idx, bboxes, features)
 
-        local_active_tracks = list(
-            filter(lambda t: t.time_since_update == 0, self.camera_managers[camera_id].tracks)
-        )
+        local_active_tracks = self.camera_managers[camera_id].get_active_tracks()
 
         # type check
         for local_active_track in local_active_tracks:
