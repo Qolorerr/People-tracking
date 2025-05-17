@@ -142,16 +142,6 @@ tracklet_master:
   tracklet_expiration: 500
   match_threshold: 0.7
 
-#tracklet_master:
-#  _target_: src.utils.AdaptiveTrackManager
-#  motion_weight: 0.425
-#  appearance_weight: 0.575
-#  match_threshold: 0.4275
-#  tracklet_expiration: 100
-#  adapt_params:
-#    adapt_weights:
-#      delta: 0.001
-
 visualizer:
   track_length: 100
 

@@ -54,14 +54,21 @@ conda install pyqt~=5.15.10
 ```
 
 ### **2. Настройка конфигурации**
-- Указать пути к датасетам в `config/config.yaml`.
+- Указать пути к датасетам в `config/dataset/sportsMOT.yaml`.
+- Указать глобальный путь до `config/yolo11n.pt` в `detection_model.model` в `config/config.yaml`.
+- Указать путь к обрезанному датасету в `config/crop_sportsMOT.yaml` (если потребуется обрезанный датасет для ускорения обучения).
 - Указать IP-адреса камер (если используется live-режим).
+
+### **3. Настройка переменных окружения**
+Рекомендуется указать следующие переменные окружения:
+- NO_ALBUMENTATIONS_UPDATE=1
+- PYTHONWARNINGS=ignore
 
 ## **Запуск**
 
 ### **1. Подготовка датасета (опционально)**
 ```bash
-python crop_sportsmot.py# обрезка SportsMOT для ускорения обучения
+python crop_sportsmot.py  # обрезка SportsMOT для ускорения обучения
 ```
 
 ### **2. Обучение модели**
