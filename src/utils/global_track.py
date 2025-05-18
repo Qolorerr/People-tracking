@@ -50,8 +50,10 @@ class GlobalTrack(BaseTrack):
             and self.local_track_map[camera_id].track_id == track_id
         )
 
-    def get_features(self) -> Tensor:
-        return torch.stack([local_track.feature for local_track in self.local_track_map.values()])
+    def get_features(self, camera_id: int) -> Tensor:
+        if camera_id in self.checked_cameras:
+            return self.local_track_map[camera_id].feature
+        return torch.mean(torch.stack([local_track.feature for local_track in self.local_track_map.values()]), dim=0)
 
     def get_frames_to_vis(self, camera_id: int, curr_frame_idx: int) -> list[tuple[int, int, int]]:
         idx_from = curr_frame_idx - (self.track_length_vis - 1)
@@ -61,3 +63,11 @@ class GlobalTrack(BaseTrack):
                 self.global_history[camera_id],
             )
         )
+
+    def clean(self):
+        for camera_id, local_track in self.local_track_map.items():
+            if local_track.deleted:
+                self.checked_cameras.remove(camera_id)
+                self.local_track_map.pop(camera_id)
+        if len(self.checked_cameras) == 0:
+            self.deleted = True
