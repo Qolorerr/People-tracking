@@ -4,14 +4,14 @@ import random
 from typing import Any
 
 import cv2
-import numpy as np
 import torch
 from torch import Tensor, LongTensor
 
 from src.base import BaseDataset
+from src.utils.mixins import TransformFrameMixin
 
 
-class SportsMOTDataset(BaseDataset):
+class SportsMOTDataset(BaseDataset, TransformFrameMixin):
     def __init__(
         self, splits_dir: str, load_limit: int | None = None, shuffle: bool = False, **kwargs
     ):
@@ -95,21 +95,7 @@ class SportsMOTDataset(BaseDataset):
             boxes.append([x, y, x + w, y + h])
             labels.append(self._max_num_pids * video_idx + int(ann["person_id"]))
 
-        boxes = np.array(boxes, dtype=np.int64) if boxes else np.zeros((0, 4), dtype=np.int64)
-        labels = np.array(labels, dtype=np.int64) if labels else np.zeros((0,), dtype=np.int64)
-
-        try:
-            transformed = self.transforms(image=frame, bboxes=boxes, class_labels=labels)
-        except Exception as e:
-            print("Exception:", self.samples[idx])
-            raise e
-        frame, boxes, labels = (
-            transformed["image"],
-            transformed["bboxes"],
-            transformed["class_labels"],
-        )
-        frame = frame.float() / 255.0
-        boxes = torch.from_numpy(boxes).to(torch.int64)
+        frame, boxes, labels = self.transform_frame(frame, boxes, labels, error_message=f"({video_idx}, {frame_id})")
         labels = torch.tensor(labels, dtype=torch.long)
 
         return frame_id_tensor, frame, boxes, labels, is_new_video

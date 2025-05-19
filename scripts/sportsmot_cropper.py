@@ -3,16 +3,14 @@ from typing import Any
 
 import albumentations
 import cv2
-import numpy as np
-import torch
-from torch import Tensor
-import torchvision.transforms.functional as F
 from tqdm import tqdm
 
 from src.datasets.sportsmot import read_annotations
+from src.utils.helpers import save_img, save_gt
+from src.utils.mixins import SimpleCropBboxesOutOfFramesMixin, TransformFrameMixin
 
 
-class SportsMOTCropper:
+class SportsMOTCropper(SimpleCropBboxesOutOfFramesMixin, TransformFrameMixin):
     def __init__(
         self,
         root: str,
@@ -72,25 +70,7 @@ class SportsMOTCropper:
                     labels.append(self._max_num_pids * video_idx + int(ann["person_id"]))
                     save_ids.append(ann["idx"])
 
-                boxes = (
-                    np.array(boxes, dtype=np.int64) if boxes else np.zeros((0, 4), dtype=np.int64)
-                )
-                labels = (
-                    np.array(labels, dtype=np.int64) if labels else np.zeros((0,), dtype=np.int64)
-                )
-
-                try:
-                    transformed = self.transforms(image=frame, bboxes=boxes, class_labels=labels)
-                except Exception as e:
-                    print("Exception:", (video_idx, frame_id))
-                    raise e
-                frame, boxes, labels = (
-                    transformed["image"],
-                    transformed["bboxes"],
-                    transformed["class_labels"],
-                )
-                frame = frame.float() / 255.0
-                boxes = torch.from_numpy(boxes).to(torch.int64)
+                frame, boxes, labels = self.transform_frame(frame, boxes, labels, error_message=f"({video_idx}, {frame_id})")
                 crops = self.process_frame(frame=frame, bboxes=boxes)
 
                 video_labels.extend(labels)
@@ -99,53 +79,8 @@ class SportsMOTCropper:
                 # save crops
                 for save_id, crop in zip(save_ids, crops):
                     frame_path = os.path.join(save_video_path, "img1", f"{save_id:06d}.jpg")
-                    self.save_img(frame_path, crop)
+                    save_img(frame_path, crop)
 
             # save gt
             gt_path = os.path.join(save_video_path, "gt", "gt.txt")
-            self.save_gt(gt_path, video_save_ids, video_labels)
-
-    def _reshape_cropped_img(self, img: Tensor) -> Tensor:
-        target_h, target_w = self.person_reshape_h, self.person_reshape_w
-
-        _, h, w = img.shape
-
-        scale = min(target_h / h, target_w / w)
-        new_h = int(h * scale)
-        new_w = int(w * scale)
-
-        resized = F.resize(img, [new_h, new_w])
-
-        pad_top = (target_h - new_h) // 2
-        pad_bottom = target_h - new_h - pad_top
-        pad_left = (target_w - new_w) // 2
-        pad_right = target_w - new_w - pad_left
-
-        padded = F.pad(resized, [pad_left, pad_top, pad_right, pad_bottom])
-
-        return padded
-
-    def process_frame(self, frame: Tensor, bboxes: Tensor) -> list[Tensor]:
-        crops = []
-
-        for bbox in bboxes:
-            x1, y1, x2, y2 = bbox.int()
-            crop: Tensor = frame[:, y1:y2, x1:x2]
-
-            crop = self._reshape_cropped_img(crop)
-            crops.append(crop)
-
-        return crops
-
-    @staticmethod
-    def save_img(dst: str, img: Tensor):
-        img_np = img.cpu().numpy().transpose(1, 2, 0)
-        img_np = (img_np * 255).astype(np.uint8)
-        img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(dst, img_np, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-
-    @staticmethod
-    def save_gt(dst: str, save_ids: list[int], labels: list[int]):
-        with open(dst, "w") as f:
-            for save_id, label in zip(save_ids, labels):
-                f.write(f"{save_id}, {label}\n")
+            save_gt(gt_path, video_save_ids, video_labels)
