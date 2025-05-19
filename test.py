@@ -1,9 +1,8 @@
-from typing import Callable
-
 import hydra
 from accelerate import Accelerator
 from hydra.utils import instantiate
 from omegaconf import DictConfig
+from torch import nn
 from ultralytics import YOLO
 
 from scripts import Tester
@@ -17,9 +16,16 @@ def main(cfg: DictConfig):
     accelerator: Accelerator = instantiate(cfg.accelerator)
 
     detection_model: YOLO | None = instantiate(cfg.detection_model)
-    feature_extractor: Callable = instantiate(cfg.feature_extractor, device=str(accelerator.device))
+    feature_extractor_model: nn.Module = instantiate(cfg.feature_extractor_model, num_classes=1024)
 
-    tester = Tester(dataloader, accelerator, detection_model, feature_extractor, cfg)
+    tester = Tester(
+        dataloader=dataloader,
+        accelerator=accelerator,
+        detection_model=detection_model,
+        feature_extractor_model=feature_extractor_model,
+        config=cfg,
+        resume=cfg.resume,
+    )
     tester.test()
 
 

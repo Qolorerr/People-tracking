@@ -46,7 +46,9 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self.feature_extractor_model: nn.Module = feature_extractor_model
         self.config: DictConfig = config
 
-        self.tracklet_master: TrackManager = instantiate(config.tracklet_master, device=self.device)
+        self.tracklet_manager: TrackManager = instantiate(
+            config.tracklet_master, device=self.device
+        )
         self.visualizer = TrackVisualizer()
 
         self.detection_model, self.feature_extractor_model = self.accelerator.prepare(
@@ -60,9 +62,9 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         self._transforms = instantiate(cfg_tester.transforms)
 
         self._is_multicam: bool = False
-        if isinstance(self.tracklet_master, GlobalTrackManager):
+        if isinstance(self.tracklet_manager, GlobalTrackManager):
             for camera_id in range(len(self._rtsp_urls)):
-                self.tracklet_master.add_camera(camera_id)
+                self.tracklet_manager.add_camera(camera_id)
             self._is_multicam = True
 
         # CHECKPOINTS & TENSORBOARD
@@ -125,7 +127,9 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
 
         return data
 
-    def _process_frame(self, camera_id: int, frame_idx: int, frame: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def _process_frame(
+        self, camera_id: int, frame_idx: int, frame: NDArray[np.uint8]
+    ) -> NDArray[np.uint8]:
         try:
             transformed = self._transforms(image=frame)
         except Exception as e:
@@ -143,12 +147,12 @@ class LiveTester(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin):
         if self._is_multicam:
             kwargs["camera_id"] = camera_id
 
-        active_tracks = self.tracklet_master.update(**kwargs)
+        active_tracks = self.tracklet_manager.update(**kwargs)
 
-        track_manager_metrics = self.tracklet_master.get_metrics()
+        track_manager_metrics = self.tracklet_manager.get_metrics()
         self.metric_store.update(track_manager_metrics)
 
-        if isinstance(self.tracklet_master, LoadAndSaveParamsMixin):
+        if isinstance(self.tracklet_manager, LoadAndSaveParamsMixin):
             tracker_params = self.get_params()
             self.metric_store.update(tracker_params)
 
