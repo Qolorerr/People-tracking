@@ -22,7 +22,7 @@ class TrackValidator:
         if len(pred_tracks) > 0 and len(true_bboxes) > 0:
             pred_boxes = torch.stack([t["bbox"] for t in pred_tracks]).cpu().numpy()
             true_boxes = true_bboxes.cpu().numpy()
-            dist_matrix = mm.distances.iou_matrix(pred_boxes, true_boxes, max_iou=0.5)
+            dist_matrix = mm.distances.iou_matrix(pred_boxes, true_boxes)
         else:
             dist_matrix = np.empty((0, 0))
 
