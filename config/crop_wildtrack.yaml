@@ -1,0 +1,38 @@
+defaults:
+   - _self_
+   - dataset: wildtrack
+
+img_h: 720
+img_w: 1280
+pad_img_h: 736
+pad_img_w: 1280
+
+train_transforms:
+  - _target_: albumentations.Resize
+    height: ${img_h}
+    width: ${img_w}
+  - _target_: albumentations.PadIfNeeded
+    min_height: ${pad_img_h}
+    min_width: ${pad_img_w}
+    border_mode: 0
+    value:
+    - 0
+    - 0
+    - 0
+  - _target_: albumentations.pytorch.ToTensorV2
+
+cropper:
+  _target_: scripts.wildtrack_cropper.WildTrackCropper
+  root: ${dataset.data_dir}
+  split: train
+  transforms:
+    _target_: albumentations.Compose
+    transforms: ${train_transforms}
+    bbox_params:
+      _target_: albumentations.BboxParams
+      format: pascal_voc
+      label_fields:
+      - class_labels
+  person_reshape_h: 256
+  person_reshape_w: 128
+  dataset_save_dir: D:\Datasets\Wildtrack_cropped

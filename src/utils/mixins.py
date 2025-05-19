@@ -1,5 +1,6 @@
 from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 import torchvision.transforms.functional as F
@@ -101,3 +102,62 @@ class VisualizeAndWriteFrameMixin:
             global_step=self.wrt_step,
             dataformats="CHW",
         )
+
+
+class SimpleCropBboxesOutOfFramesMixin:
+    def _reshape_cropped_img(self, img: Tensor) -> Tensor:
+        target_h, target_w = self.person_reshape_h, self.person_reshape_w
+
+        _, h, w = img.shape
+
+        scale = min(target_h / h, target_w / w)
+        new_h = int(h * scale)
+        new_w = int(w * scale)
+
+        resized = F.resize(img, [new_h, new_w])
+
+        pad_top = (target_h - new_h) // 2
+        pad_bottom = target_h - new_h - pad_top
+        pad_left = (target_w - new_w) // 2
+        pad_right = target_w - new_w - pad_left
+
+        padded = F.pad(resized, [pad_left, pad_top, pad_right, pad_bottom])
+
+        return padded
+
+    def process_frame(self, frame: Tensor, bboxes: Tensor) -> list[Tensor]:
+        crops = []
+
+        for bbox in bboxes:
+            x1, y1, x2, y2 = bbox.int()
+            crop: Tensor = frame[:, y1:y2, x1:x2]
+
+            crop = self._reshape_cropped_img(crop)
+            crops.append(crop)
+
+        return crops
+
+
+class TransformFrameMixin:
+    def transform_frame(self, frame: np.ndarray, boxes: list[list[int]], labels: list[int], error_message: str) -> (Tensor, Tensor, list[int]):
+        boxes = (
+            np.array(boxes, dtype=np.int64) if boxes else np.zeros((0, 4), dtype=np.int64)
+        )
+        labels = (
+            np.array(labels, dtype=np.int64) if labels else np.zeros((0,), dtype=np.int64)
+        )
+
+        try:
+            transformed = self.transforms(image=frame, bboxes=boxes, class_labels=labels)
+        except Exception as e:
+            print("Exception: " + error_message)
+            raise e
+        frame, boxes, labels = (
+            transformed["image"],
+            transformed["bboxes"],
+            transformed["class_labels"],
+        )
+        frame = frame.float() / 255.0
+        boxes = torch.from_numpy(boxes).to(torch.int64)
+
+        return frame, boxes, labels

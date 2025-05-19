@@ -14,7 +14,10 @@ class BaseTrackManager:
         raise NotImplementedError
 
     def _clean(self) -> None:
-        self.tracks = [t for t in self.tracks if t.time_since_update <= self.tracklet_expiration]
+        for track in self.tracks:
+            if track.time_since_update > self.tracklet_expiration:
+                track.deleted = True
+        self.tracks = [t for t in self.tracks if not t.deleted]
 
     def reset(self):
         self.tracks = []

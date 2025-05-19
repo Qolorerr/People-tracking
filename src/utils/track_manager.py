@@ -126,9 +126,6 @@ class TrackManager(BaseTrackManager):
 
         return matches, unmatched_pred, unmatched_true
 
-    def get_active_tracks(self) -> list[Track]:
-        return list(filter(lambda t: t.time_since_update == 0 and t.hits > 20, self.tracks))
-
     def get_active_tracks_info(self, frame_idx: int, *args, **kwargs) -> list[dict[str, Any]]:
         active_tracks = []
         for track in self.tracks:

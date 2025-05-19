@@ -10,5 +10,7 @@ class BaseTrack:
         self.hits = 0
         self.track_length_vis = track_length_vis
 
+        self.deleted = False
+
     def update(self, *args, **kwargs) -> None:
         raise NotImplementedError

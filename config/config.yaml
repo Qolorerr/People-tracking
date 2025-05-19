@@ -1,6 +1,6 @@
 defaults:
    - _self_
-   - dataset: sportsMOT
+   - dataset: wildtrack
 
 name: "YOLO11n-osnet_x1_0"
 confidence_threshold: 0.594
@@ -45,13 +45,13 @@ test_transforms:
 train_loader:
   _target_: torch.utils.data.DataLoader
   dataset:
-    _target_: src.datasets.CroppedSportsMOTDataset
+    _target_: src.datasets.CroppedWildTrackDataset
     root: ${dataset.cropped_data_dir}
     split: train
     transforms:
       _target_: albumentations.Compose
       transforms: ${train_transforms}
-    splits_dir: ${dataset.cropped_splits_dir}
+#    splits_dir: ${dataset.cropped_splits_dir}
 #    load_limit: 1000
   shuffle: True
   batch_size: 8
@@ -59,8 +59,16 @@ train_loader:
 
 val_loader:
   _target_: src.base.BaseDataLoader
+  camera_ids:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
   dataset:
-    _target_: src.datasets.SportsMOTDataset
+    _target_: src.datasets.WildTrackDataset
     root: ${dataset.data_dir}
     split: val
     transforms:
@@ -71,9 +79,9 @@ val_loader:
         format: pascal_voc
         label_fields:
         - class_labels
-    splits_dir: ${dataset.splits_dir}
-#    load_limit: 100
-    shuffle: False
+#    splits_dir: ${dataset.splits_dir}
+#    load_limit: 700
+#    shuffle: False
   batch_size: 1
   num_workers: 1
 
@@ -140,7 +148,17 @@ tracklet_master:
       adapt_weights:
         delta: 0.001
   tracklet_expiration: 500
-  match_threshold: 0.7
+  match_threshold: 0.25
+
+#tracklet_master:
+#  _target_: src.utils.AdaptiveTrackManager
+#  motion_weight: 0.425
+#  appearance_weight: 0.575
+#  match_threshold: 0.4275
+#  tracklet_expiration: 100
+#  adapt_params:
+#    adapt_weights:
+#      delta: 0.001
 
 visualizer:
   track_length: 100

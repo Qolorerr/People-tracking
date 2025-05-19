@@ -18,7 +18,7 @@ def main(cfg: DictConfig):
     accelerator: Accelerator = instantiate(cfg.accelerator)
 
     detection_model: YOLO | None = instantiate(cfg.detection_model)
-    feature_extractor_model: nn.Module = instantiate(cfg.feature_extractor_model, num_classes=1024)
+    feature_extractor_model: nn.Module = instantiate(cfg.feature_extractor_model, num_classes=2048)
 
     trainer = Trainer(
         train_dataloader=train_dataloader,

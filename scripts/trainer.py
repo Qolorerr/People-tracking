@@ -110,7 +110,6 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
         writer_dir = str(os.path.join(cfg_trainer["log_dir"], self.config["name"], start_time))
         self.writer = tensorboard.SummaryWriter(writer_dir)
         info_to_write = [
-            "crop_size",
             "train_loader",
             "detection_model",
             "feature_extractor_model",
@@ -321,7 +320,9 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
         return best_params
 
     def _val_epoch(self, epoch: int) -> dict[str, float]:
-        self.set_model_mode("eval")
+        mode = "eval"
+
+        self.set_model_mode(mode)
 
         end_time = time.time()
         self.metric_store.reset()
@@ -333,10 +334,18 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
         for idx, data in enumerate(tbar):
             self.metric_store.update({"load time": time.time() - end_time})
 
+            frame_idx = idx
+
             active_tracks = self.evaluate(data)
             self.metric_store.update({"proc time": time.time() - end_time})
 
-            if idx % self.log_per_iter == 0:
+            if self._is_multicam:
+                camera_id, frame_idx = data[0][0].int()
+                camera_id, frame_idx = camera_id.item(), frame_idx.item()
+
+                self.wrt_mode = f"{mode}/cam{camera_id}"
+
+            if frame_idx % self.log_per_iter == 0:
                 self.metric_store.print_metrics(tbar, epoch, "VAL")
                 self.visualize_and_write_frame(data[1], active_tracks)
 
@@ -344,6 +353,8 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
 
             end_time = time.time()
             self._calc_wrt_step(epoch // self._val_per_epochs, len(self.val_dataloader), idx)
+
+        self.wrt_mode = mode
 
         self.metric_store.reset()
         self.metric_store.update(self.tracklet_validator.get_metrics())

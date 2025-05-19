@@ -51,8 +51,8 @@ class GlobalTrackManager(BaseTrackManager):
                 raise TypeError("Unknown track type")
         local_active_tracks = cast(list[Track], local_active_tracks)
 
-        unmatched_global_tracks = list(range(len(self.tracks)))
-        unmatched_local_tracks = list(range(len(local_active_tracks)))
+        unmatched_global_tracks = set(range(len(self.tracks)))
+        unmatched_local_tracks = set(range(len(local_active_tracks)))
 
         # search if already stored
         local_stored_idx_map = self._search_already_stored_tracks(camera_id, local_active_tracks)
@@ -63,9 +63,11 @@ class GlobalTrackManager(BaseTrackManager):
             unmatched_global_tracks.remove(global_track_idx)
             unmatched_local_tracks.remove(local_track_idx)
 
+        unmatched_global_tracks = set([global_track_idx for global_track_idx in unmatched_global_tracks if camera_id not in self.tracks[global_track_idx].checked_cameras])
+
         # find matches based on appearance
         matches: list[tuple[int, int]] = self._find_matches(
-            local_active_tracks, unmatched_global_tracks, unmatched_local_tracks
+            camera_id, local_active_tracks, list(unmatched_global_tracks), list(unmatched_local_tracks)
         )
 
         # update matched tracks
@@ -74,7 +76,8 @@ class GlobalTrackManager(BaseTrackManager):
 
             self.tracks[global_track_idx].update(camera_id, frame_idx, local_track)
 
-            unmatched_global_tracks.remove(global_track_idx)
+            if global_track_idx in unmatched_global_tracks:
+                unmatched_global_tracks.remove(global_track_idx)
             unmatched_local_tracks.remove(local_track_idx)
 
         # create new tracks for unmatched detections
@@ -111,6 +114,7 @@ class GlobalTrackManager(BaseTrackManager):
 
     def _find_matches(
         self,
+        camera_id: int,
         local_active_tracks: list[Track],
         unmatched_global_tracks: list[int],
         unmatched_local_tracks: list[int],
@@ -119,13 +123,9 @@ class GlobalTrackManager(BaseTrackManager):
             matches: list[tuple[int, int]] = []
         else:
             # appearance similarity
-            temp_unmatched_global_tracks: list[int] = []
-            global_features_list: list[Tensor] = []
-            for idx in unmatched_global_tracks:
-                track_features = self.tracks[idx].get_features()
-                temp_unmatched_global_tracks.extend([idx] * len(track_features))
-                global_features_list.append(track_features)
-            global_features: Tensor = torch.cat(global_features_list)
+            global_features: Tensor = torch.stack(
+                [self.tracks[idx].get_features(camera_id) for idx in unmatched_global_tracks]
+            )
             global_features_norm: Tensor = F.normalize(global_features, p=2, dim=1)
             local_features: Tensor = torch.stack(
                 [local_active_tracks[idx].feature for idx in unmatched_local_tracks]
@@ -146,7 +146,7 @@ class GlobalTrackManager(BaseTrackManager):
                     if cost_matrix[r, c] <= self.match_threshold:
                         matches.append(
                             (
-                                temp_unmatched_global_tracks[r.item()],
+                                unmatched_global_tracks[r.item()],
                                 unmatched_local_tracks[c.item()],
                             )
                         )
@@ -183,3 +183,8 @@ class GlobalTrackManager(BaseTrackManager):
                 )
 
         return active_tracks
+
+    def _clean(self) -> None:
+        super()._clean()
+        for track in self.tracks:
+            track.clean()
