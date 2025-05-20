@@ -46,14 +46,13 @@ class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin, LoadAndSav
         )
         self.visualizer = TrackVisualizer()
 
-        self.detection_model, self.feature_extractor = self.accelerator.prepare(
-            self.detection_model, self.feature_extractor
+        self.detection_model, self.feature_extractor_model = self.accelerator.prepare(
+            self.detection_model, self.feature_extractor_model
         )
         self.detection_model = cast(YOLO, self.detection_model)
         self.feature_extractor_model.eval()
 
         cfg_tester = self.config["tester"]
-        self._transforms = instantiate(cfg_tester.transforms)
 
         self._is_multicam: bool = False
         if isinstance(self.tracklet_manager, GlobalTrackManager):
@@ -68,7 +67,7 @@ class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin, LoadAndSav
         info_to_write = [
             "test_loader",
             "detection_model",
-            "feature_extractor",
+            "feature_extractor_model",
             "tester",
         ]
         for info in info_to_write:
@@ -109,6 +108,7 @@ class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin, LoadAndSav
             }
             if self._is_multicam:
                 kwargs["camera_id"] = camera_id
+                self.wrt_mode = f"test/cam{camera_id}"
 
             active_tracks = self.tracklet_manager.update(**kwargs)
 

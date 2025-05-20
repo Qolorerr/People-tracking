@@ -1,3 +1,12 @@
 data_dir: D:\Datasets\Wildtrack
 
 cropped_data_dir: D:\Datasets\Wildtrack_cropped
+
+camera_ids:
+- 0
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6

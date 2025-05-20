@@ -41,6 +41,17 @@ class WildTrackDataset(BaseDataset, TransformFrameMixin):
         frame_id_tensor = torch.tensor([camera_id, frame_id // 5], dtype=torch.int64)
         is_new_video = torch.tensor([False], dtype=torch.bool)
 
+        if self.split == "test":
+            try:
+                transformed = self.transforms(image=frame)
+            except Exception as e:
+                print("Exception:", self.samples[idx])
+                raise e
+            frame = transformed["image"]
+            frame = frame.float() / 255.0
+
+            return frame_id_tensor, frame, torch.tensor([]), torch.tensor([]), is_new_video
+
         anns: list[dict[str, Any]] = cam_anns.get(frame_id, [])
         boxes, labels = [], []
         for ann in anns:

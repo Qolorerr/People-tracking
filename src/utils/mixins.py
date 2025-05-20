@@ -102,9 +102,6 @@ class VisualizeAndWriteFrameMixin:
     def visualize_and_write_frame(
         self, frames: Tensor, active_tracks: list[dict[str, Any]]
     ) -> None:
-        if self.wrt_step % self.log_step != 0:
-            return
-
         img = self.visualize_frame(frames, active_tracks)
 
         self.writer.add_image(

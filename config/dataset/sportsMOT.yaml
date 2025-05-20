@@ -5,3 +5,6 @@ splits_dir: D:\Datasets\sportsmot_publish\splits_txt
 cropped_data_dir: D:\Datasets\sportsmot_cropped\dataset
 
 cropped_splits_dir: D:\Datasets\sportsmot_cropped\splits_txt
+
+camera_ids:
+- 0
