@@ -89,14 +89,6 @@ class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin, LoadAndSav
         if resume:
             self._resume_checkpoint(resume)
 
-    def _detect_and_extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
-        with torch.no_grad():
-            detections = self.detection_model.predict(frame, verbose=False)[0]
-
-            data = self.extract_bboxes(frame, detections)
-
-        return data
-
     def test(self) -> None:
         tbar = tqdm(self.dataloader, desc="Test")
         for self.wrt_step, (frame_info, frame, _, _, is_new_video) in enumerate(tbar):
@@ -108,7 +100,7 @@ class Tester(CropBboxesOutOfFramesMixin, VisualizeAndWriteFrameMixin, LoadAndSav
 
             start_time = datetime.now()
 
-            detections = self._detect_and_extract_bboxes(frame)
+            detections = self.detect_and_extract_bboxes(frame)
 
             kwargs = {
                 "frame_idx": frame_idx,

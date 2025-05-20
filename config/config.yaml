@@ -12,6 +12,7 @@ person_reshape_h: 256
 person_reshape_w: 128
 
 train_transforms:
+  - _target_: albumentations.Normalize
   - _target_: albumentations.pytorch.ToTensorV2
 
 val_transforms:
@@ -130,11 +131,6 @@ optimizer:
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
   mode: max
-
-feature_extractor:
-  _target_: torchreid.utils.FeatureExtractor
-  model_name: "osnet_x1_0"
-  model_path: D:\Programs\Projects\People-detection\log\osnet_x1_0\model\model.pth.tar-60
 
 tracklet_master:
   _target_: src.utils.GlobalTrackManager

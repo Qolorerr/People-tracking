@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 import torchvision.transforms.functional as F
+from torchvision import transforms
 from ultralytics.engine.results import Results
 
 
@@ -59,6 +60,16 @@ class CropBboxesOutOfFramesMixin:
             features = self.feature_extractor_model(batch)
 
         return {"bboxes": bboxes, "confs": confs, "features": features}
+
+    def detect_and_extract_bboxes(self, frame: Tensor) -> dict[str, Tensor]:
+        with torch.no_grad():
+            detections = self.detection_model.predict(frame, verbose=False)[0]
+
+            norm_frame = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(frame)
+
+            data = self.extract_bboxes(norm_frame, detections)
+
+        return data
 
 
 class LoadAndSaveParamsMixin:

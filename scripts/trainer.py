@@ -370,14 +370,6 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
             self.detection_model.training = False
             self.feature_extractor_model.eval()
 
-    def process_frame(self, frame: Tensor) -> dict[str, Tensor]:
-        with torch.no_grad():
-            detections = self.detection_model.predict(frame, verbose=False)[0]
-
-        data = self.extract_bboxes(frame, detections)
-
-        return data
-
     @staticmethod
     def _filter_degenerate_bboxes(bboxes: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
         valid_mask = (bboxes[:, 0] != bboxes[:, 2]) & (bboxes[:, 1] != bboxes[:, 3])
@@ -416,7 +408,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
         if is_new_video.item():
             self.tracklet_manager.reset()
 
-        detections = self.process_frame(frame)
+        detections = self.detect_and_extract_bboxes(frame)
 
         kwargs = {
             "frame_idx": frame_idx,
