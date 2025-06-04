@@ -75,16 +75,16 @@ class CropBboxesOutOfFramesMixin:
 class LoadAndSaveParamsMixin:
     def load_params(self, params: dict[str, Any]) -> None:
         self.confidence_threshold = params["confidence_threshold"]
-        self.tracklet_master.motion_weight = params["motion_weight"]
-        self.tracklet_master.appearance_weight = params["appearance_weight"]
-        self.tracklet_master.match_threshold = params["match_threshold"]
+        self.tracklet_manager.motion_weight = params["motion_weight"]
+        self.tracklet_manager.appearance_weight = params["appearance_weight"]
+        self.tracklet_manager.match_threshold = params["match_threshold"]
 
     def get_params(self) -> dict[str, Any]:
         return {
             "confidence_threshold": self.confidence_threshold,
-            "motion_weight": self.tracklet_master.motion_weight,
-            "appearance_weight": self.tracklet_master.appearance_weight,
-            "match_threshold": self.tracklet_master.match_threshold,
+            "motion_weight": self.tracklet_manager.motion_weight,
+            "appearance_weight": self.tracklet_manager.appearance_weight,
+            "match_threshold": self.tracklet_manager.match_threshold,
         }
 
 

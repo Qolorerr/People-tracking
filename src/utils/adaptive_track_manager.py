@@ -110,4 +110,7 @@ class AdaptiveTrackManager(TrackManager):
         self.metrics.reset()
 
     def get_metrics(self) -> dict[str, float]:
-        return self.metrics.current
+        metrics = super().get_metrics()
+        for key, value in self.metrics.current.items():
+            metrics[key] = value
+        return metrics

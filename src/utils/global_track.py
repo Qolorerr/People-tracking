@@ -33,6 +33,7 @@ class GlobalTrack(BaseTrack):
 
     def iterate(self, frame_idx: int) -> None:
         self.time_since_update = max(frame_idx - self.last_frame_idx, 0)
+        self.clean()
 
     def update(self, camera_id: int, frame_idx: int, local_track: Track, *args, **kwargs) -> None:
         self.checked_cameras.add(camera_id)
@@ -65,9 +66,14 @@ class GlobalTrack(BaseTrack):
         )
 
     def clean(self):
+        to_delete = []
         for camera_id, local_track in self.local_track_map.items():
             if local_track.deleted:
-                self.checked_cameras.remove(camera_id)
-                self.local_track_map.pop(camera_id)
+                to_delete.append(camera_id)
+
+        for camera_id in to_delete:
+            self.checked_cameras.remove(camera_id)
+            self.local_track_map.pop(camera_id)
+
         if len(self.checked_cameras) == 0:
             self.deleted = True

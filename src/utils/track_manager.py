@@ -126,6 +126,11 @@ class TrackManager(BaseTrackManager):
 
         return matches, unmatched_pred, unmatched_true
 
+    def get_metrics(self) -> dict[str, float]:
+        return {"motion_weight": self.motion_weight,
+                "appearance_weight": self.appearance_weight,
+                "match_threshold": self.match_threshold}
+
     def get_active_tracks_info(self, frame_idx: int, *args, **kwargs) -> list[dict[str, Any]]:
         active_tracks = []
         for track in self.tracks:

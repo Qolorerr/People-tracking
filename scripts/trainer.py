@@ -357,6 +357,7 @@ class Trainer(CropBboxesOutOfFramesMixin, LoadAndSaveParamsMixin, VisualizeAndWr
         self.wrt_mode = mode
 
         self.metric_store.reset()
+        self.metric_store.update(self.tracklet_manager.get_metrics())
         self.metric_store.update(self.tracklet_validator.get_metrics())
         self.metric_store.log_metrics(self.wrt_mode, self.wrt_step)
 

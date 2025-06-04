@@ -22,12 +22,12 @@ class TrackValidator:
         if len(pred_tracks) > 0 and len(true_bboxes) > 0:
             pred_boxes = torch.stack([t["bbox"] for t in pred_tracks]).cpu().numpy()
             true_boxes = true_bboxes.cpu().numpy()
-            dist_matrix = mm.distances.iou_matrix(pred_boxes, true_boxes)
+            dist_matrix = mm.distances.iou_matrix(hyps=pred_boxes, objs=true_boxes)
         else:
             dist_matrix = np.empty((0, 0))
 
         self.mot_accum.update(
-            [int(id) for id in pred_ids], [int(id) for id in true_ids], dist_matrix
+            hids=[int(id) for id in pred_ids], oids=[int(id) for id in true_ids], dists=dist_matrix
         )
 
     def get_metrics(self) -> dict[str, Any]:
@@ -40,6 +40,6 @@ class TrackValidator:
             "FP": "num_false_positives",
             "id_switches": "num_switches",
         }
-        metrics_values = mh.compute(self.mot_accum, metrics=metrics.values(), name="acc")
+        metrics_values = mh.compute(self.mot_accum, metrics=metrics.values(), name="acc", return_dataframe=False)
 
-        return {key: metrics_values[value].iloc[0] for key, value in metrics.items()}
+        return {key: metrics_values[value] for key, value in metrics.items()}

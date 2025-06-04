@@ -161,6 +161,14 @@ class GlobalTrackManager(BaseTrackManager):
         for manager in self.camera_managers.values():
             manager.reset()
 
+    def get_metrics(self) -> dict[str, float]:
+        result = {}
+        for camera_id, manager in self.camera_managers.items():
+            local_metrics = manager.get_metrics()
+            for local_key, value in local_metrics.items():
+                result[f"cam{camera_id + 1}/{local_key}"] = value
+        return result
+
     def get_active_tracks_info(
         self, camera_id: int, frame_idx: int, *args, **kwargs
     ) -> list[dict[str, Any]]:
@@ -185,6 +193,6 @@ class GlobalTrackManager(BaseTrackManager):
         return active_tracks
 
     def _clean(self) -> None:
-        super()._clean()
         for track in self.tracks:
             track.clean()
+        super()._clean()
